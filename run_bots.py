@@ -1,6 +1,6 @@
 """
 Script unificador para iniciar los bots de Telegram y el servidor web en Render
-utilizando procesos independientes para evitar conflictos de hilos.
+utilizando procesos independientes.
 """
 import multiprocessing
 import time
@@ -10,8 +10,12 @@ from keep_alive import keep_alive  # Servidor web fantasma para Render
 def run_commercial_bot():
     try:
         app_logger.info("Iniciando Bot de Comercio y Ventas...")
-        from modules.dept_02_comercio_ventas.telegram_voice_bot import main as start_commercial
-        start_commercial()
+        from modules.dept_02_comercio_ventas.telegram_voice_bot import telegram_controller
+        telegram_controller.start()
+        
+        # Mantener el proceso vivo mientras el controlador de Telegram opera en segundo plano
+        while telegram_controller.is_active:
+            time.sleep(1)
     except Exception as e:
         app_logger.error(f"Error en Bot de Comercio: {e}", exc_info=True)
 
@@ -26,7 +30,7 @@ def run_finance_bot():
 if __name__ == "__main__":
     app_logger.info("=== LEVANTANDO SERVICIOS DE TELEGRAM EN LA NUBE (MULTIPROCESS) ===")
     
-    # 1. Lanzar los bots en procesos separados (cada uno con su propio intérprete y hilo principal)
+    # 1. Lanzar los bots en procesos separados
     p1 = multiprocessing.Process(target=run_commercial_bot)
     p2 = multiprocessing.Process(target=run_finance_bot)
     
