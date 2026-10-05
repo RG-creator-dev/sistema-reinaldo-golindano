@@ -1,0 +1,71 @@
+[
+  {
+    "quote_id": "COT-1001",
+    "date": "2026-09-21 22:51:29",
+    "client_name": "Ascenso 2011",
+    "client_rif": "N/A",
+    "client_phone": "N/A",
+    "items": [
+      {
+        "description": "Cartucho de tóner Samsung 111S (MLT-D111S)",
+        "specs": "Compatible con impresoras Samsung Xpress M2020, M2022, M2070, M2070FW",
+        "qty": 1,
+        "price_usd": 25.0
+      }
+    ],
+    "subtotal_usd": 25.0,
+    "tax_percent": 16.0,
+    "tax_usd": 4.0,
+    "total_usd": 29.0,
+    "bcv_rate": 849.564,
+    "total_bs": 24637.36,
+    "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1001_20260921_225129.pdf",
+    "status": "Emitida"
+  },
+  {
+    "quote_id": "COT-1002",
+    "date": "2026-09-25 04:55:10",
+    "client_name": "Universidad Arturo Michelena",
+    "client_rif": "N/A",
+    "client_phone": "N/A",
+    "items": [
+      {
+        "description": "Impresora Multifuncional Epson EcoTank L4360",
+        "specs": "Sistema continuo original de fábrica, multifuncional (imprime, copia, escanea), conectividad Wi-Fi, Wi-Fi Direct e impresión dúplex automática.",
+        "qty": 1,
+        "price_usd": 410.0
+      }
+    ],
+    "subtotal_usd": 410.0,
+    "tax_percent": 16.0,
+    "tax_usd": 65.6,
+    "total_usd": 475.6,
+    "bcv_rate": 855.6625,
+    "total_bs": 406953.09,
+    "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1002_20260925_045510.pdf",
+    "status": "Emitida"
+  },
+  {
+    "quote_id": "COT-1003",
+    "date": "2026-10-02 23:42:06",
+    "client_name": "Cruz Roja Venezolana Seccional Carabobo",
+    "client_rif": "N/A",
+    "client_phone": "N/A",
+    "items": [
+      {
+        "description": "Servicio de reparación de impresora",
+        "specs": "Impresora HP LaserJet Pro P1102 - Revisión, diagnóstico y corrección de falla",
+        "qty": 1,
+        "price_usd": 40.0
+      }
+    ],
+    "subtotal_usd": 40.0,
+    "tax_percent": 16.0,
+    "tax_usd": 6.4,
+    "total_usd": 46.4,
+    "bcv_rate": 866.5612,
+    "total_bs": 40208.44,
+    "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1003_20261002_234206.pdf",
+    "status": "Emitida"
+  }
+]

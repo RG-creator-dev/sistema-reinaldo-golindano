@@ -1,0 +1,122 @@
+[
+  {
+    "id": "TRX-1790994615422",
+    "date": "2026-10-02 22:30:15",
+    "type": "Ingreso",
+    "amount_usd": 14.42,
+    "bcv_rate": 866.5612,
+    "amount_bs": 12500.0,
+    "method": "Banco de Venezuela",
+    "category": "General",
+    "description": "Cobro factura Duglas",
+    "ref_code": "000084736572835"
+  },
+  {
+    "id": "TRX-1790996719611",
+    "date": "2026-10-02 23:05:19",
+    "type": "Ingreso",
+    "amount_usd": 19.85,
+    "bcv_rate": 866.5612,
+    "amount_bs": 17203.6,
+    "method": "Provincial",
+    "category": "General",
+    "description": "Cobro factura Duglas",
+    "ref_code": "0006371739"
+  },
+  {
+    "id": "TRX-1790996922524",
+    "date": "2026-10-02 23:08:42",
+    "type": "Egreso",
+    "amount_usd": 63.8,
+    "bcv_rate": 866.5612,
+    "amount_bs": 55290.0,
+    "method": "Provincial",
+    "category": "General",
+    "description": "Pago mercancía",
+    "ref_code": "10522"
+  },
+  {
+    "id": "TRX-1790997038484",
+    "date": "2026-10-02 23:10:38",
+    "type": "Egreso",
+    "amount_usd": 4.62,
+    "bcv_rate": 866.5612,
+    "amount_bs": 4000.0,
+    "method": "Mercantil",
+    "category": "General",
+    "description": "Pago teléfono",
+    "ref_code": "10520"
+  },
+  {
+    "id": "TRX-1790998061566",
+    "date": "2026-10-02 23:27:41",
+    "type": "Egreso",
+    "amount_usd": 8.63,
+    "bcv_rate": 866.5612,
+    "amount_bs": 7480.0,
+    "method": "Mercantil",
+    "category": "Sueldo",
+    "description": "Pago sueldo",
+    "ref_code": "000075000720426"
+  },
+  {
+    "id": "TRX-1790998160756",
+    "date": "2026-10-02 23:29:20",
+    "type": "Egreso",
+    "amount_usd": 1.5,
+    "bcv_rate": 866.5612,
+    "amount_bs": 1299.84,
+    "method": "Mercantil",
+    "category": "Sueldo",
+    "description": "Pago sueldo",
+    "ref_code": "000075001364420"
+  },
+  {
+    "id": "TRX-1790998311836",
+    "date": "2026-10-02 23:31:51",
+    "type": "Egreso",
+    "amount_usd": 1.97,
+    "bcv_rate": 866.5612,
+    "amount_bs": 1710.0,
+    "method": "Mercantil",
+    "category": "General",
+    "description": "Pago viáticos",
+    "ref_code": "000075000576576"
+  },
+  {
+    "id": "TRX-1791192495673",
+    "date": "2026-10-05 05:28:15",
+    "type": "Egreso",
+    "amount_usd": 2.3,
+    "bcv_rate": 871.3689,
+    "amount_bs": 2000.0,
+    "method": "Mercantil",
+    "category": "Sueldo",
+    "description": "Pago sueldo",
+    "ref_code": "48315620655"
+  },
+  {
+    "id": "TRX-1791192647668",
+    "date": "2026-10-05 05:30:47",
+    "type": "Ingreso",
+    "amount_usd": 91.51,
+    "bcv_rate": 871.3689,
+    "amount_bs": 79738.69,
+    "method": "Mercantil",
+    "category": "General",
+    "description": "Ingreso extraordinario",
+    "ref_code": "TRAJ0029729006000019905"
+  },
+  {
+    "id": "TRX-1791192727917",
+    "date": "2026-10-05 05:32:07",
+    "type": "Egreso",
+    "amount_usd": 28.86,
+    "bcv_rate": 871.3689,
+    "amount_bs": 25145.38,
+    "method": "Provincial",
+    "category": "Sueldo",
+    "description": "Pago sueldo",
+    "ref_code": "10524"
+  }
+]
