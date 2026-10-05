@@ -1,10 +1,11 @@
 """
-Script unificador para iniciar los bots de Telegram de Inversiones Reinaldo Golindano en Render.
+Script unificador para iniciar los bots de Telegram y el servidor web en Render
+utilizando procesos independientes para evitar conflictos de hilos.
 """
-import threading
+import multiprocessing
 import time
 from core.logger import app_logger
-from keep_alive import keep_alive  # Importamos el servidor web fantasma para Render
+from keep_alive import keep_alive  # Servidor web fantasma para Render
 
 def run_commercial_bot():
     try:
@@ -23,25 +24,27 @@ def run_finance_bot():
         app_logger.error(f"Error en Bot de Finanzas: {e}", exc_info=True)
 
 if __name__ == "__main__":
-    app_logger.info("=== LEVANTANDO SERVICIOS DE TELEGRAM EN LA NUBE ===")
+    app_logger.info("=== LEVANTANDO SERVICIOS DE TELEGRAM EN LA NUBE (MULTIPROCESS) ===")
     
-    # 1. Iniciamos el servidor web fantasma primero para satisfacer el puerto HTTP de Render
+    # 1. Lanzar los bots en procesos separados (cada uno con su propio intérprete y hilo principal)
+    p1 = multiprocessing.Process(target=run_commercial_bot)
+    p2 = multiprocessing.Process(target=run_finance_bot)
+    
+    p1.start()
+    p2.start()
+    
+    # 2. Ejecutar el servidor web keep_alive en el proceso principal para atender el puerto de Render
     try:
+        app_logger.info("Iniciando servidor web principal (keep_alive)...")
         keep_alive()
-        app_logger.info("Servidor web fantasma (keep_alive) iniciado correctamente.")
     except Exception as e:
-        app_logger.error(f"Error al iniciar keep_alive: {e}", exc_info=True)
+        app_logger.error(f"Error crítico en keep_alive: {e}", exc_info=True)
     
-    # 2. Lanzar cada bot en un hilo separado para que corran simultáneamente
-    t1 = threading.Thread(target=run_commercial_bot, daemon=True)
-    t2 = threading.Thread(target=run_finance_bot, daemon=True)
-    
-    t1.start()
-    t2.start()
-    
-    # Mantener el proceso principal activo
+    # Mantener el proceso vivo y supervisar
     try:
-        while True:
-            time.sleep(1)
+        p1.join()
+        p2.join()
     except KeyboardInterrupt:
         app_logger.info("Deteniendo servicios...")
+        p1.terminate()
+        p2.terminate()
