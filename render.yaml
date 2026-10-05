@@ -5,7 +5,7 @@ services:
     region: ohio
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python -m modules.dept_02_comercio_ventas.telegram_voice_bot
+    startCommand: python run_bots.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.0

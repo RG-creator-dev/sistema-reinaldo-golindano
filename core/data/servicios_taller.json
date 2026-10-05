@@ -1,0 +1,22 @@
+[
+  {
+    "job_id": "ST-93807",
+    "created_at": "2026-10-05 05:50:07",
+    "client_name": "Duglas Natera",
+    "client_phone": "0414-4020700",
+    "equipment": "Canon IR3035",
+    "symptoms": "Partes claras en la impresión",
+    "estimated_cost_usd": 30.0,
+    "status": "En Banco de Prueba"
+  },
+  {
+    "job_id": "ST-93958",
+    "created_at": "2026-10-05 05:52:38",
+    "client_name": "Sra. Mirgelis",
+    "client_phone": "0412-0609479",
+    "equipment": "Canon IR1025",
+    "symptoms": "Claridad en la impresión",
+    "estimated_cost_usd": 30.0,
+    "status": "En Banco de Prueba"
+  }
+]
