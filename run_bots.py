@@ -4,6 +4,7 @@ Script unificador para iniciar los bots de Telegram de Inversiones Reinaldo Goli
 import threading
 import time
 from core.logger import app_logger
+from keep_alive import keep_alive  # Importamos el servidor web fantasma para Render
 
 def run_commercial_bot():
     try:
@@ -24,7 +25,14 @@ def run_finance_bot():
 if __name__ == "__main__":
     app_logger.info("=== LEVANTANDO SERVICIOS DE TELEGRAM EN LA NUBE ===")
     
-    # Lanzar cada bot en un hilo separado para que corran simultáneamente
+    # 1. Iniciamos el servidor web fantasma primero para satisfacer el puerto HTTP de Render
+    try:
+        keep_alive()
+        app_logger.info("Servidor web fantasma (keep_alive) iniciado correctamente.")
+    except Exception as e:
+        app_logger.error(f"Error al iniciar keep_alive: {e}", exc_info=True)
+    
+    # 2. Lanzar cada bot en un hilo separado para que corran simultáneamente
     t1 = threading.Thread(target=run_commercial_bot, daemon=True)
     t2 = threading.Thread(target=run_finance_bot, daemon=True)
     
