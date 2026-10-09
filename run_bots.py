@@ -5,7 +5,7 @@ con el endpoint /api/sync en Render utilizando procesos independientes.
 import multiprocessing
 import time
 from core.logger import app_logger
-from keep_alive import app, run_server  # Importamos la app de Flask y su función de arranque
+from keep_alive import run_server  # Importamos la función de arranque del servidor web
 
 def run_commercial_bot():
     try:
