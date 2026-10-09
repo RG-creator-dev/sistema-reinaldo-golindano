@@ -9,11 +9,10 @@ import sys
 from config import SystemConfig
 from core.logger import app_logger
 from ui.main_window import MainWindow
-from modules.dept_02_comercio_ventas.telegram_voice_bot import telegram_controller
 
 
 def main():
-    """Inicializa la configuración, directorios, bot en segundo plano y bucle gráfico sin consola."""
+    """Inicializa la configuración, directorios y bucle gráfico sin consola."""
     app_logger.info("=" * 70)
     app_logger.info(f"Iniciando {SystemConfig.APP_NAME} en modo silencioso (v{SystemConfig.APP_VERSION})")
     app_logger.info("=" * 70)
@@ -27,10 +26,6 @@ def main():
         app.mainloop()
     except Exception as e:
         app_logger.critical(f"Error fatal en la ejecución de la aplicación: {e}", exc_info=True)
-        try:
-            telegram_controller.stop()
-        except Exception:
-            pass
         sys.exit(1)
 
 

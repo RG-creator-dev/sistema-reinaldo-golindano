@@ -9,7 +9,6 @@ import sys
 from config import SystemConfig
 from core.logger import app_logger
 from ui.main_window import MainWindow
-from modules.dept_02_comercio_ventas.telegram_voice_bot import telegram_controller
 
 
 def main():
@@ -27,10 +26,6 @@ def main():
         app.mainloop()
     except Exception as e:
         app_logger.critical(f"Error fatal en la ejecución de la aplicación: {e}", exc_info=True)
-        try:
-            telegram_controller.stop()
-        except Exception:
-            pass
         sys.exit(1)
 
 

@@ -56,6 +56,12 @@ class EventBus:
         else:
             _notify()
 
+    def emit(self, event_type: str, data: Any = None, async_exec: bool = True) -> None:
+        """Alias de publish para compatibilidad de interfaz."""
+        self.publish(event_type, data, async_exec=async_exec)
+
 
 # Instancia única transversal para todo el sistema
 system_event_bus = EventBus()
+event_bus = system_event_bus
+

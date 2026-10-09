@@ -242,17 +242,24 @@ class ComercioVentasView(ctk.CTkFrame):
         ctrl_frame = ctk.CTkFrame(tab, fg_color=Theme.CARD_BG, corner_radius=10, border_width=1, border_color=Theme.CARD_BORDER)
         ctrl_frame.pack(fill="x", padx=10, pady=10)
 
-        ctk.CTkLabel(ctrl_frame, text="Control del Bot de Telegram (@InversionesRG_bot)", font=Theme.FONT_SUBTITLE, text_color=Theme.TEXT_MAIN).pack(anchor="w", padx=15, pady=(10, 5))
+        ctk.CTkLabel(ctrl_frame, text="Servicio de Telegram (@InversionesRG_bot y @Finanzasdelaempresabot)", font=Theme.FONT_SUBTITLE, text_color=Theme.TEXT_MAIN).pack(anchor="w", padx=15, pady=(10, 5))
 
         bot_status_bar = ctk.CTkFrame(ctrl_frame, fg_color="transparent")
         bot_status_bar.pack(fill="x", padx=15, pady=5)
 
         is_active = telegram_controller.is_active
-        status_text = "🟢 Estado: ACTIVO (Escuchando en vivo)" if is_active else "🔴 Estado: DETENIDO"
-        status_color = Theme.SUCCESS if is_active else Theme.DANGER
-        btn_text = "⏹️ Detener Bot" if is_active else "▶️ Iniciar Bot de Telegram"
-        btn_color = Theme.DANGER if is_active else Theme.SUCCESS
-        btn_hover = "#dc2626" if is_active else Theme.SUCCESS_HOVER
+        if is_active:
+            status_text = "🟢 Escucha Local: ACTIVA (Modo Pruebas)"
+            status_color = Theme.SUCCESS
+            btn_text = "⏹️ Detener Escucha Local"
+            btn_color = Theme.DANGER
+            btn_hover = "#dc2626"
+        else:
+            status_text = "☁️ Modo Nube: Operando centralmente en Render 24/7"
+            status_color = Theme.PRIMARY
+            btn_text = "▶️ Activar Escucha Local (Debug)"
+            btn_color = Theme.CARD_BORDER
+            btn_hover = Theme.PRIMARY
 
         self.lbl_bot_status = ctk.CTkLabel(
             bot_status_bar,
@@ -268,46 +275,53 @@ class ComercioVentasView(ctk.CTkFrame):
             font=Theme.FONT_BODY_BOLD,
             fg_color=btn_color,
             hover_color=btn_hover,
-            width=180,
+            width=220,
             command=self._toggle_telegram_bot
         )
         self.btn_toggle_bot.pack(side="right", padx=5)
 
-        # Instrucciones de uso para el usuario
+        # Instrucciones y Paridad Cloud
         info_box = ctk.CTkFrame(tab, fg_color=Theme.INPUT_BG, corner_radius=8)
         info_box.pack(fill="x", padx=10, pady=5)
         instrucciones = (
-            "💡 FLUJO AUTOMATIZADO VÍA TELEGRAM:\n"
-            "1. Al iniciar el bot, éste escucha notas de voz y mensajes en @InversionesRG_bot.\n"
-            "2. Las notas de voz se transcriben de forma nativa con Gemini AI.\n"
-            "3. Se extraen ítems, precios y condición de IVA (16% por defecto / sin IVA).\n"
-            "4. Se emite el PDF formal y el bot lo envía de vuelta directamente al chat del cliente."
+            "💡 ARQUITECTURA EN LA NUBE (RENDER) & PREVENCIÓN DE CONFLICTO 409:\n"
+            "• El bot de Telegram corre de forma permanente y exclusiva en los servidores de Render en la nube.\n"
+            "• Esto evita el conflicto de doble instancia (Error 409) y asegura atención 24/7 a clientes vía móvil.\n"
+            "• Al abrir la app de escritorio o pulsar '☁️ Sincronizar', todos los presupuestos emitidos en la nube se descargan automáticamente."
         )
         ctk.CTkLabel(info_box, text=instrucciones, font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED, justify="left").pack(anchor="w", padx=15, pady=8)
 
-        # Log de actividad en vivo
+        # Log de actividad
         log_frame = ctk.CTkFrame(tab, fg_color=Theme.CARD_BG, corner_radius=10, border_width=1, border_color=Theme.CARD_BORDER)
         log_frame.pack(fill="both", expand=True, padx=10, pady=5)
-        ctk.CTkLabel(log_frame, text="Registro de Actividad en Vivo (Telegram)", font=Theme.FONT_SUBTITLE, text_color=Theme.TEXT_MAIN).pack(anchor="w", padx=15, pady=(10, 5))
+        ctk.CTkLabel(log_frame, text="Bitácora de Sincronización y Actividad de Telegram", font=Theme.FONT_SUBTITLE, text_color=Theme.TEXT_MAIN).pack(anchor="w", padx=15, pady=(10, 5))
 
         self.txt_telegram_log = ctk.CTkTextbox(log_frame, font=Theme.FONT_CODE, fg_color=Theme.INPUT_BG)
         self.txt_telegram_log.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+        self.txt_telegram_log.insert("1.0", f"[{datetime.now().strftime('%H:%M:%S')}] Conexión configurada con el servidor central de Render.\n")
 
     def _toggle_telegram_bot(self):
         if not telegram_controller.is_active:
-            telegram_controller.start()
-            self.lbl_bot_status.configure(text="🟢 Estado: ACTIVO (Escuchando en vivo)", text_color=Theme.SUCCESS)
-            self.btn_toggle_bot.configure(text="⏹️ Detener Bot", fg_color=Theme.DANGER, hover_color="#dc2626")
-            self._log_tg("Bot de Telegram iniciado correctamente.")
+            if messagebox.askyesno(
+                "Advertencia de Conflicto 409",
+                "El bot ya está corriendo en la nube (Render).\n\n"
+                "Iniciar la escucha local simultáneamente causará un conflicto 409 en la API de Telegram salvo que el servidor en la nube esté detenido.\n\n"
+                "¿Deseas iniciar la escucha local de todas formas para pruebas?"
+            ):
+                telegram_controller.start()
+                self.lbl_bot_status.configure(text="🟢 Escucha Local: ACTIVA (Modo Pruebas)", text_color=Theme.SUCCESS)
+                self.btn_toggle_bot.configure(text="⏹️ Detener Escucha Local", fg_color=Theme.DANGER, hover_color="#dc2626")
+                self._log_tg("Escucha local de Telegram activada manualmente.")
         else:
             telegram_controller.stop()
-            self.lbl_bot_status.configure(text="🔴 Estado: DETENIDO", text_color=Theme.DANGER)
-            self.btn_toggle_bot.configure(text="▶️ Iniciar Bot de Telegram", fg_color=Theme.SUCCESS, hover_color=Theme.SUCCESS_HOVER)
-            self._log_tg("Bot de Telegram detenido.")
+            self.lbl_bot_status.configure(text="☁️ Modo Nube: Operando centralmente en Render 24/7", text_color=Theme.PRIMARY)
+            self.btn_toggle_bot.configure(text="▶️ Activar Escucha Local (Debug)", fg_color=Theme.CARD_BORDER, hover_color=Theme.PRIMARY)
+            self._log_tg("Escucha local detenida. El bot continúa operando en la nube (Render).")
 
     def _log_tg(self, msg: str):
         self.txt_telegram_log.insert("end", f"[{datetime.now().strftime('%H:%M:%S')}] {msg}\n")
         self.txt_telegram_log.see("end")
+
 
     # -------------------------------------------------------------------------
     # PESTAÑA 3: MERCADO LIBRE (MONITOREO NACIONAL)

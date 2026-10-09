@@ -62,6 +62,15 @@ class SystemConfig:
     BCV_API_URL = "https://ve.dolarapi.com/v1/dolares/oficial"
     DEFAULT_BCV_RATE = 849.56   # Tasa de respaldo si no hay internet
 
+    # Sincronización en la Nube (Render)
+    RENDER_SYNC_URL = os.getenv("RENDER_SYNC_URL", "https://imsucopias-telegram-bot.onrender.com")
+    RENDER_SYNC_TOKEN = os.getenv("RENDER_SYNC_TOKEN", "inversiones_reinaldo_golindano_sync_key")
+    AUTO_SYNC_ON_STARTUP = os.getenv("AUTO_SYNC_ON_STARTUP", "True").lower() in ("true", "1", "t")
+
+    # Control de Instancia de Telegram Bot (False por defecto para evitar Conflicto 409 con Render)
+    ENABLE_LOCAL_TELEGRAM_POLLING = os.getenv("ENABLE_LOCAL_TELEGRAM_POLLING", "False").lower() in ("true", "1", "t")
+
+
     @classmethod
     def ensure_directories(cls):
         """Crea todos los directorios necesarios y archivos de base de datos vacíos si no existen."""

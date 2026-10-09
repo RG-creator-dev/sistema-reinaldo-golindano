@@ -1,5 +1,5 @@
 services:
-  - type: worker
+  - type: web
     name: imsucopias-telegram-bot
     env: python
     region: ohio
