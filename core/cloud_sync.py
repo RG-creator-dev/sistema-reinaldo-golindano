@@ -4,8 +4,8 @@ SISTEMA DE GESTIÓN DE INVERSIONES REINALDO GOLINDANO
 Módulo: core/cloud_sync.py
 Descripción: Motor de sincronización bidireccional (Pull y Push) en segundo
              plano con el servidor en la nube (Render). Descarga automáticamente
-             transacciones, cotizaciones y registros remotos, y permite enviar
-             las operaciones locales para mantener paridad total 24/7.
+             transacciones, cotizaciones y registros remotos, y envía las
+             operaciones locales para mantener paridad total 24/7.
 =============================================================================
 """
 
@@ -31,9 +31,10 @@ class CloudSyncManager:
 
     def sync_bidirectional(self, timeout: int = 15) -> Dict[str, Any]:
         """
-        Ejecuta la sincronización bidireccional completa:
-        1. Pull: Descarga registros creados en Render (vía móvil / Telegram) mientras el PC estuvo cerrado.
-        2. Push: Envía transacciones o cotizaciones creadas en el escritorio hacia el servidor Render.
+        Ejecuta la sincronización bidireccional completa (Pull y Push):
+        1. Prepara el lote de datos locales creados en el escritorio.
+        2. Envía (POST) a /api/sync en Render, el cual fusiona y persiste los datos en la nube.
+        3. Recibe la base de datos completa de Render y la vuelca en la base local del escritorio.
         """
         if self.is_syncing:
             return {
@@ -53,41 +54,35 @@ class CloudSyncManager:
             "Content-Type": "application/json; charset=utf-8"
         }
 
-        # Intentos con reintento para despertar servidor en Render (cold start de free tier)
+        # Preparar payload local (Push)
+        local_payload = {
+            "ledger": self._read_json_file(getattr(SystemConfig, "LEDGER_FILE", "data/ledger.json")),
+            "cotizaciones": self._read_json_file(getattr(SystemConfig, "QUOTES_FILE", "data/cotizaciones.json")),
+            "servicios_taller": self._read_json_file(getattr(SystemConfig, "WORKSHOP_FILE", "data/servicios_taller.json")),
+            "compras": self._read_json_file(getattr(SystemConfig, "PURCHASES_FILE", "data/compras.json")),
+            "accounting_settings": self._read_json_file(os.path.join(getattr(SystemConfig, "DATA_DIR", "data"), "accounting_settings.json"))
+        }
+
         max_intentos = 2
         last_error = ""
 
         for intento in range(1, max_intentos + 1):
             try:
-                # -------------------------------------------------------------
-                # FASE 1: PULL (Obtención de registros desde Render)
-                # -------------------------------------------------------------
-                resp_get = requests.get(endpoint, headers=headers, timeout=timeout)
+                # 1. Intentar POST bidireccional (Push + Pull atómico)
+                resp = requests.post(endpoint, json=local_payload, headers=headers, timeout=timeout)
                 
-                if resp_get.status_code == 200:
-                    cloud_data = resp_get.json()
+                # Si el endpoint responde 405 (Method Not Allowed), intentar GET (Pull clásico)
+                if resp.status_code == 405:
+                    resp = requests.get(endpoint, headers=headers, timeout=timeout)
+
+                if resp.status_code == 200:
+                    cloud_data = resp.json()
                     merge_result = self._merge_cloud_data(cloud_data)
                     self.last_sync_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-                    # ---------------------------------------------------------
-                    # FASE 2: PUSH (Envío de registros locales a Render)
-                    # ---------------------------------------------------------
-                    local_payload = {
-                        "ledger": self._read_json_file(getattr(SystemConfig, "LEDGER_FILE", "data/ledger.json")),
-                        "cotizaciones": self._read_json_file(getattr(SystemConfig, "QUOTES_FILE", "data/cotizaciones.json")),
-                        "servicios_taller": self._read_json_file(getattr(SystemConfig, "WORKSHOP_FILE", "data/servicios_taller.json")),
-                        "compras": self._read_json_file(getattr(SystemConfig, "PURCHASES_FILE", "data/compras.json")),
-                        "accounting_settings": self._read_json_file(os.path.join(getattr(SystemConfig, "DATA_DIR", "data"), "accounting_settings.json"))
-                    }
-
-                    try:
-                        requests.post(endpoint, json=local_payload, headers=headers, timeout=10)
-                    except Exception as e:
-                        app_logger.warning(f"Aviso en fase Push hacia Render: {e}")
-
                     app_logger.info(
-                        f"Sincronización con Render completada con éxito: "
-                        f"+{merge_result['new_transactions']} transacciones, +{merge_result['new_quotes']} cotizaciones."
+                        f"Sincronización bidireccional exitosa: "
+                        f"+{merge_result['new_transactions']} transacciones nuevas, +{merge_result['new_quotes']} cotizaciones nuevas."
                     )
 
                     # Emitir evento global
@@ -106,15 +101,15 @@ class CloudSyncManager:
                         **merge_result
                     }
 
-                elif resp_get.status_code == 404:
-                    app_logger.warning("El servidor Render respondió 404. El endpoint /api/sync se encuentra en proceso de despliegue.")
-                    last_error = "Endpoint /api/sync en proceso de activación en Render."
+                elif resp.status_code == 404:
+                    app_logger.warning("El servidor Render respondió 404 en /api/sync.")
+                    last_error = "Endpoint /api/sync en proceso de activación o despliegue en Render."
                 else:
-                    last_error = f"Servidor respondió con código {resp_get.status_code}."
+                    last_error = f"Servidor Render respondió con código HTTP {resp.status_code}."
 
             except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
                 app_logger.info(f"Intento {intento}/{max_intentos} conectando con Render ({type(e).__name__})...")
-                last_error = f"El servidor de Render está iniciando (reactivación gratuita). Reintentando en breve..."
+                last_error = "El servidor de Render está reactivándose. Reintentando..."
                 time.sleep(2)
             except Exception as e:
                 app_logger.error(f"Error inesperado en sincronización: {e}", exc_info=True)
@@ -124,13 +119,13 @@ class CloudSyncManager:
         self.is_syncing = False
         return {
             "success": False,
-            "message": last_error or "Sin conexión con Render.",
+            "message": last_error or "Sin conexión con el servidor Render.",
             "new_transactions": 0,
             "new_quotes": 0
         }
 
     def sync_from_cloud(self, timeout: int = 15) -> Dict[str, Any]:
-        """Alias para ejecutar la sincronización bidireccional."""
+        """Alias para sincronización bidireccional."""
         return self.sync_bidirectional(timeout=timeout)
 
     def _merge_cloud_data(self, cloud_data: Dict[str, Any]) -> Dict[str, int]:
@@ -202,10 +197,10 @@ class CloudSyncManager:
             local_workshop_path = getattr(SystemConfig, "WORKSHOP_FILE", "data/servicios_taller.json")
             local_workshop = self._read_json_file(local_workshop_path)
             
-            existing_w_ids = {w.get("id") or w.get("order_id") for w in local_workshop if (w.get("id") or w.get("order_id"))}
+            existing_w_ids = {w.get("id") or w.get("job_id") for w in local_workshop if (w.get("id") or w.get("job_id"))}
             added_w = []
             for w in remote_workshop:
-                wid = w.get("id") or w.get("order_id")
+                wid = w.get("id") or w.get("job_id")
                 if wid and wid in existing_w_ids:
                     continue
                 local_workshop.append(w)
