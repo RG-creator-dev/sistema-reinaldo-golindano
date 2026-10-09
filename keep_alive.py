@@ -214,4 +214,5 @@ def keep_alive():
 
 
 if __name__ == "__main__":
-    run_server()
+    run_server() 
+# Sincronización activa con Render ok
