@@ -13,9 +13,13 @@ import threading
 from flask import Flask, request, jsonify, make_response
 from config import SystemConfig
 from core.logger import app_logger
+from modules.dept_04_administracion_finanzas.accounting_agent import AccountingAgent
 
 # Inicializar aplicación Flask
 app = Flask(__name__)
+
+# Instancia singleton del Agente Contable para el servidor
+accounting_agent = AccountingAgent()
 
 
 def _read_json_safe(path: str):
@@ -59,7 +63,7 @@ def _merge_incoming_data(incoming: dict) -> dict:
         for item in incoming["ledger"]:
             trx_id = item.get("id")
             sig = (item.get("date"), round(float(item.get("amount_usd", 0.0)), 2), item.get("ref_code", ""))
-            
+
             if trx_id and trx_id in existing_ids:
                 continue
             if sig in existing_sigs:
@@ -158,10 +162,7 @@ def api_status():
 @app.route("/api/data", methods=["GET", "POST", "OPTIONS"])
 def api_sync():
     """
-    Endpoint principal de sincronización bidireccional (Pull y Push):
-    - GET: Descarga los registros actuales almacenados en el servidor Render.
-    - POST: Recibe registros del escritorio, los fusiona en Render y retorna el estado actualizado.
-    - OPTIONS: Atiende solicitudes de preflight CORS.
+    Endpoint principal de sincronización bidireccional (Pull y Push).
     """
     if request.method == "OPTIONS":
         return make_response("", 200)
@@ -172,8 +173,13 @@ def api_sync():
         incoming_data = request.get_json(silent=True) or {}
         merged_summary = _merge_incoming_data(incoming_data)
 
-    # 2. Cargar estado actualizado del servidor para devolver al cliente (PULL)
-    ledger_data = _read_json_safe(getattr(SystemConfig, "LEDGER_FILE", "data/ledger.json"))
+    # 2. Cargar estado actualizado del servidor pidiendo directamente al Agente Contable y archivos
+    ledger_data = accounting_agent._load_ledger()
+    if not ledger_data:
+        ledger_data = _read_json_safe(getattr(SystemConfig, "LEDGER_FILE", "data/ledger.json"))
+        if not ledger_data:
+            ledger_data = _read_json_safe(getattr(SystemConfig, "FINANCES_FILE", "data/finanzas.json"))
+
     quotes_data = _read_json_safe(getattr(SystemConfig, "QUOTES_FILE", "data/cotizaciones.json"))
     workshop_data = _read_json_safe(getattr(SystemConfig, "WORKSHOP_FILE", "data/servicios_taller.json"))
     purchases_data = _read_json_safe(getattr(SystemConfig, "PURCHASES_FILE", "data/compras.json"))
@@ -214,5 +220,4 @@ def keep_alive():
 
 
 if __name__ == "__main__":
-    run_server() 
-# Sincronización activa con Render ok
+    run_server()
