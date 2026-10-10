@@ -4,7 +4,7 @@ SISTEMA DE GESTIÓN DE INVERSIONES REINALDO GOLINDANO
 Departamento: ADMINISTRACIÓN Y FINANZAS
 Módulo: accounting_agent.py
 Descripción: Agente Administrador y Contable con gestión de Saldo Inicial,
-             registro en tiempo real, visión con Gemini 3.8 y Cierre Mensual.
+             registro en tiempo real, visión con Gemini y Cierre Mensual.
 =============================================================================
 """
 
@@ -81,16 +81,18 @@ class AccountingAgent(BaseAgent):
         return []
 
     def _save_ledger(self, data: List[Dict[str, Any]]) -> None:
-        """Guarda y sincroniza las transacciones para que se actualicen al instante en la UI."""
+        """Guarda y unifica las transacciones en el archivo oficial del Libro Mayor para Render y Escritorio."""
         try:
             ledger_path = getattr(SystemConfig, "LEDGER_FILE", "data/ledger.json")
-            finances_path = getattr(SystemConfig, "FINANCES_FILE", "data/finances.json")
+            finances_path = getattr(SystemConfig, "FINANCES_FILE", "data/finanzas.json")
             
             os.makedirs(os.path.dirname(ledger_path), exist_ok=True)
 
+            # Guardar en ledger principal
             with open(ledger_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
                 
+            # Guardar en archivo de finanzas sincronizado
             if finances_path and finances_path != ledger_path:
                 os.makedirs(os.path.dirname(finances_path), exist_ok=True)
                 with open(finances_path, "w", encoding="utf-8") as f:
@@ -190,7 +192,7 @@ class AccountingAgent(BaseAgent):
         )
 
     def call_gemini_with_image(self, prompt: str, image_path: str, model_name: str = "gemini-3.8-flash") -> str:
-        """Procesa la imagen directamente con Gemini 3.8 y respaldo en 3.6."""
+        """Procesa la imagen directamente con Gemini y respaldo."""
         if not os.path.exists(image_path):
             raise FileNotFoundError(f"No se encontró el archivo de imagen en: {image_path}")
 
@@ -287,12 +289,7 @@ Devuelve ÚNICAMENTE un JSON válido sin texto adicional ni bloques de markdown.
             return AgentResponse(success=False, message=f"Error al procesar la imagen con IA: {str(e)}")
 
     def perform_monthly_close(self, year: Optional[int] = None, month: Optional[int] = None) -> AgentResponse:
-        """
-        Ejecuta el cierre de mes:
-        1. Toma el saldo inicial y las transacciones actuales.
-        2. Genera un reporte único consolidado y lo guarda en 'data/monthly_reports/{mes}/reporte_cierre.json'.
-        3. Limpia el Libro Mayor y reinicia el saldo inicial para comenzar el nuevo mes en blanco.
-        """
+        """Ejecuta el cierre de mes consolidando los registros."""
         now = datetime.now()
         target_year = year if year is not None else now.year
         target_month = month if month is not None else now.month
@@ -333,7 +330,6 @@ Devuelve ÚNICAMENTE un JSON válido sin texto adicional ni bloques de markdown.
         except Exception as e:
             return AgentResponse(success=False, message=f"Error guardando el reporte de cierre: {e}")
 
-        # Reiniciar para el nuevo mes
         self._save_ledger([])
         self._save_settings({"initial_balance_usd": 0.0})
 
