@@ -12,6 +12,7 @@ import os
 import re
 import threading
 import webbrowser
+import datetime
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import customtkinter as ctk
@@ -298,7 +299,7 @@ class ComercioVentasView(ctk.CTkFrame):
 
         self.txt_telegram_log = ctk.CTkTextbox(log_frame, font=Theme.FONT_CODE, fg_color=Theme.INPUT_BG)
         self.txt_telegram_log.pack(fill="both", expand=True, padx=15, pady=(0, 15))
-        self.txt_telegram_log.insert("1.0", f"[{datetime.now().strftime('%H:%M:%S')}] Conexión configurada con el servidor central de Render.\n")
+        self.txt_telegram_log.insert("1.0", f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Conexión configurada con el servidor central de Render.\n")
 
     def _toggle_telegram_bot(self):
         if not telegram_controller.is_active:
@@ -319,7 +320,7 @@ class ComercioVentasView(ctk.CTkFrame):
             self._log_tg("Escucha local detenida. El bot continúa operando en la nube (Render).")
 
     def _log_tg(self, msg: str):
-        self.txt_telegram_log.insert("end", f"[{datetime.now().strftime('%H:%M:%S')}] {msg}\n")
+        self.txt_telegram_log.insert("end", f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {msg}\n")
         self.txt_telegram_log.see("end")
 
 
@@ -639,114 +640,97 @@ class ComercioVentasView(ctk.CTkFrame):
                     sub_pos = end
 
                 if sub_pos < len(linea):
-                    chunk_tail = linea[sub_pos:].replace("**", "")
-                    self.txt_ml_ai.insert("end", chunk_tail, "normal")
+                    self.txt_ml_ai.insert("end", linea[sub_pos:], "normal")
                 self.txt_ml_ai.insert("end", "\n", "normal")
 
         self.txt_ml_ai.config(state="disabled")
 
     def _abrir_enlace_ml(self):
         sel = self.tree_ml.selection()
-        if sel:
-            vals = self.tree_ml.item(sel[0], "values")
-            if len(vals) >= 4 and vals[3].startswith("http"):
-                webbrowser.open(vals[3])
+        if not sel:
+            return
+        row_vals = self.tree_ml.item(sel[0], "values")
+        if row_vals and len(row_vals) >= 4:
+            url = row_vals[3]
+            if url and url.startswith("http"):
+                webbrowser.open(url)
 
     def _exportar_ml_csv(self):
         if not self.ml_resultados_cache:
+            messagebox.showinfo("Información", "No hay datos de Mercado Libre para exportar.")
             return
-        fpath = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV", "*.csv")])
-        if fpath:
-            if self.ml_tracker.exportar_csv(fpath, self.ml_resultados_cache):
-                messagebox.showinfo("Éxito", f"Reporte guardado:\n{fpath}")
+
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("Archivos CSV", "*.csv")],
+            title="Guardar Rastreo de Mercado Libre"
+        )
+        if file_path:
+            try:
+                import csv
+                with open(file_path, mode="w", newline="", encoding="utf-8-sig") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(["Publicación", "Precio (USD)", "Ubicación", "Enlace URL"])
+                    for row in self.ml_resultados_cache:
+                        writer.writerow(row)
+                messagebox.success("Exportación Exitosa", f"Datos exportados correctamente a:\n{file_path}")
+            except Exception as e:
+                messagebox.showerror("Error", f"No se pudo exportar el archivo CSV: {e}")
 
     # -------------------------------------------------------------------------
-    # PESTAÑA 4: MARKETING Y PUBLICIDAD B2B
+    # PESTAÑA 4: MARKETING B2B
     # -------------------------------------------------------------------------
     def _build_tab_marketing(self):
         tab = self.tab_marketing
 
-        header_mkt = ctk.CTkFrame(tab, fg_color=Theme.CARD_BG, corner_radius=10, border_width=1, border_color=Theme.CARD_BORDER)
-        header_mkt.pack(fill="x", padx=10, pady=5)
+        top_frame = ctk.CTkFrame(tab, fg_color=Theme.CARD_BG, corner_radius=10, border_width=1, border_color=Theme.CARD_BORDER)
+        top_frame.pack(fill="x", padx=10, pady=10)
 
-        ctk.CTkLabel(header_mkt, text="Estrategia Publicitaria y Publicaciones Semanales B2B", font=Theme.FONT_SUBTITLE, text_color=Theme.TEXT_MAIN).pack(side="left", padx=15, pady=10)
+        ctk.CTkLabel(top_frame, text="Estrategia y Propuestas Comerciales B2B (Carabobo)", font=Theme.FONT_SUBTITLE, text_color=Theme.TEXT_MAIN).pack(anchor="w", padx=15, pady=(10, 5))
+        ctk.CTkLabel(top_frame, text="Generador automatizado de propuestas corporativas para clínicas, universidades y grandes empresas.", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=15, pady=(0, 10))
 
-        self.btn_gen_campana = ctk.CTkButton(
-            header_mkt,
-            text="Generar Lote Semanal (L-M-V)",
+        grid_btn = ctk.CTkFrame(top_frame, fg_color="transparent")
+        grid_btn.pack(fill="x", padx=15, pady=(0, 15))
+
+        ctk.CTkButton(
+            grid_btn,
+            text="📄 Propuesta Cruz Roja Venezolana",
             font=Theme.FONT_BODY_BOLD,
             fg_color=Theme.PRIMARY,
             hover_color=Theme.PRIMARY_HOVER,
-            command=self._iniciar_marketing_thread
-        )
-        self.btn_gen_campana.pack(side="right", padx=15, pady=10)
+            command=lambda: self._generar_propuesta_b2b("Cruz Roja Venezolana Filial Carabobo")
+        ).pack(side="left", padx=(0, 10))
 
-        self.txt_mkt_output = ctk.CTkTextbox(tab, font=Theme.FONT_BODY, fg_color=Theme.CARD_BG)
-        self.txt_mkt_output.pack(fill="both", expand=True, padx=10, pady=(5, 10))
-        self.txt_mkt_output.insert(
-            "1.0",
-            "Banco de 105 temas corporativos B2B disponibles.\n"
-            "Horizonte garantizado sin repeticion: 100+ publicaciones.\n"
-            "Estilo: Formal ejecutivo — dirigido a Gerentes de Compras, Administradores y Jefes de IT.\n\n"
-            "Presiona 'Generar Lote Semanal' para redactar las 3 publicaciones B2B corporativas."
-        )
+        ctk.CTkButton(
+            grid_btn,
+            text="🎓 Propuesta Universidad Arturo Michelena",
+            font=Theme.FONT_BODY_BOLD,
+            fg_color=Theme.SUCCESS,
+            hover_color=Theme.SUCCESS_HOVER,
+            command=lambda: self._generar_propuesta_b2b("Universidad Arturo Michelena (UAM)")
+        ).pack(side="left", padx=10)
 
-    def _iniciar_marketing_thread(self):
-        self.btn_gen_campana.configure(state="disabled")
-        self.txt_mkt_output.delete("1.0", "end")
-        self.txt_mkt_output.insert(
-            "1.0",
-            "Generando publicaciones corporativas B2B...\n"
-            "Seleccionando temas unicos del banco estrategico...\n"
-        )
+        # Bitácora de Marketing
+        log_mkt = ctk.CTkFrame(tab, fg_color=Theme.CARD_BG, corner_radius=10, border_width=1, border_color=Theme.CARD_BORDER)
+        log_mkt.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        ctk.CTkLabel(log_mkt, text="Resultado de Generación B2B", font=Theme.FONT_SUBTITLE, text_color=Theme.TEXT_MAIN).pack(anchor="w", padx=15, pady=(10, 5))
 
-        def _task():
-            import json as _json
-            siguiente_id = 1
-            try:
-                if os.path.exists(SystemConfig.QUOTES_FILE):
-                    with open(SystemConfig.QUOTES_FILE, "r", encoding="utf-8") as f:
-                        quotes = _json.load(f)
-                    if quotes:
-                        nums = []
-                        for q in quotes:
-                            raw = str(q.get("quote_id", "")).replace("COT-", "")
-                            if raw.isdigit():
-                                nums.append(int(raw))
-                        if nums:
-                            siguiente_id = max(nums) + 1
-            except Exception:
-                pass
+        self.txt_mkt_log = ctk.CTkTextbox(log_mkt, font=Theme.FONT_CODE, fg_color=Theme.INPUT_BG)
+        self.txt_mkt_log.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+        self.txt_mkt_log.insert("1.0", f"[{datetime.datetime.now().strftime('%H:%M:%S সিস্ট')}] Módulo B2B listo para generar propuestas comerciales adaptadas.\n")
 
-            payload = {
-                "siguiente_id": siguiente_id,
-                "historial_copys": [],
-            }
-            res = self.marketing_agent.execute("generate_weekly_batch", payload)
-            self.after(0, self._render_marketing_batch, res)
-
-        threading.Thread(target=_task, daemon=True).start()
-
-    def _render_marketing_batch(self, res):
-        self.btn_gen_campana.configure(state="normal")
-        self.txt_mkt_output.delete("1.0", "end")
-
-        if res.success:
-            posts = res.data
-            separador = "=" * 70
-            out = f"LOTE SEMANAL B2B GENERADO  —  ESTILO CORPORATIVO EJECUTIVO\n{separador}\n\n"
-            for i, p in enumerate(posts, 1):
-                banco_id = p.get("banco_tema_id", "-")
-                pilar = p.get("pilar", "-")
-                titulo = p.get("titulo_orientativo", "-")
-                dia = p.get("dia_semana", f"Post {i}")
-                out += f"[ PUBLICACION {i} | {dia} {p['fecha_programada']} ]\n"
-                out += f"Banco ID: {banco_id} | Pilar: {pilar}\n"
-                out += f"Enfoque: {titulo}\n"
-                out += f"Categoria imagen: [{p['categoria']}] | Foto: {p['foto_asignada']}\n"
-                out += f"WhatsApp directo: {p['whatsapp_url']}\n"
-                out += f"\nCOPY DE LA PUBLICACION:\n{p['copy']}\n"
-                out += f"\n{'-' * 70}\n\n"
-            self.txt_mkt_output.insert("1.0", out)
-        else:
-            self.txt_mkt_output.insert("1.0", f"Error generando publicaciones: {res.message}")
+    def _generar_propuesta_b2b(self, target_client: str):
+        try:
+            self.txt_mkt_log.insert("end", f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Generando propuesta formal para {target_client}...\n")
+            res = self.marketing_agent.generar_propuesta(target_client)
+            if res.get("success"):
+                pdf_p = res.get("pdf_path")
+                self.txt_mkt_log.insert("end", f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ¡Propuesta generada con éxito!\nArchivo: {pdf_p}\n\n")
+                self.txt_mkt_log.see("end")
+                if messagebox.askyesno("Propuesta B2B Lista", f"Propuesta para {target_client} creada exitosamente.\n\n¿Deseas abrir el PDF ahora?"):
+                    if pdf_p and os.path.exists(pdf_p):
+                        os.startfile(pdf_p)
+            else:
+                self.txt_mkt_log.insert("end", f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Error: {res.get('message')}\n\n")
+        except Exception as e:
+            self.txt_mkt_log.insert("end", f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Excepción crítica: {e}\n\n")
