@@ -24,7 +24,7 @@ class CloudSyncManager:
     """Administrador de sincronización bidireccional (Pull y Push) con Render."""
 
     def __init__(self, sync_url: Optional[str] = None, sync_token: Optional[str] = None):
-        self.sync_url = (sync_url or getattr(SystemConfig, "RENDER_SYNC_URL", "https://imsucopias-telegram-bot.onrender.com")).rstrip("/")
+        self.sync_url = (sync_url or getattr(SystemConfig, "RENDER_SYNC_URL", "https://sistema-reinaldo-golindano.onrender.com")).rstrip("/")
         self.sync_token = sync_token or getattr(SystemConfig, "RENDER_SYNC_TOKEN", "inversiones_reinaldo_golindano_sync_key")
         self.last_sync_time: Optional[str] = None
         self.is_syncing: bool = False
