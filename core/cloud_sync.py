@@ -2,8 +2,8 @@
 =============================================================================
 SISTEMA DE GESTIÓN DE INVERSIONES REINALDO GOLINDANO
 Módulo: core/cloud_sync.py
-Descripción: Motor de sincronización optimizado mediante GET directo con 
-             el servidor en la nube (Render) para máxima estabilidad.
+Descripción: Motor de sincronización optimizado hacia el servidor en la nube
+             (Render) asegurando conexión directa y paridad de datos.
 =============================================================================
 """
 
@@ -19,17 +19,18 @@ from core.event_bus import event_bus
 
 
 class CloudSyncManager:
-    """Administrador de sincronización optimizado con Render."""
+    """Administrador de sincronización con el servidor central en Render."""
 
     def __init__(self, sync_url: Optional[str] = None, sync_token: Optional[str] = None):
-        self.sync_url = (sync_url or getattr(SystemConfig, "RENDER_SYNC_URL", "https://sistema-reinaldo-golindano.onrender.com")).rstrip("/")
+        # URL fija directa a producción para evitar lecturas de configuración obsoleta
+        self.sync_url = "https://sistema-reinaldo-golindano.onrender.com"
         self.sync_token = sync_token or getattr(SystemConfig, "RENDER_SYNC_TOKEN", "inversiones_reinaldo_golindano_sync_key")
         self.last_sync_time: Optional[str] = None
         self.is_syncing: bool = False
 
     def sync_bidirectional(self, timeout: int = 15) -> Dict[str, Any]:
         """
-        Ejecuta la sincronización consultando el endpoint cloud de Render mediante GET.
+        Ejecuta la sincronización con el servidor en Render mediante GET.
         """
         if self.is_syncing:
             return {
@@ -54,7 +55,7 @@ class CloudSyncManager:
 
         for intento in range(1, max_intentos + 1):
             try:
-                # Petición GET directa al servidor de Render (la cual ya sabemos que responde 200 OK)
+                # Petición GET directa a la URL oficial
                 resp = requests.get(endpoint, headers=headers, timeout=timeout)
 
                 if resp.status_code == 200:
@@ -67,7 +68,7 @@ class CloudSyncManager:
                         f"+{merge_result['new_transactions']} transacciones nuevas, +{merge_result['new_quotes']} cotizaciones nuevas."
                     )
 
-                    # Emitir evento global
+                    # Emitir evento global en el sistema local
                     event_bus.emit("cloud_sync_completed", {
                         "timestamp": self.last_sync_time,
                         "new_transactions": merge_result["new_transactions"],
@@ -85,7 +86,7 @@ class CloudSyncManager:
 
                 elif resp.status_code == 404:
                     app_logger.warning("El servidor Render respondió 404 en /api/sync.")
-                    last_error = "Endpoint /api/sync no encontrado o no disponible en Render."
+                    last_error = "Endpoint /api/sync no encontrado en el servidor."
                 else:
                     last_error = f"Servidor Render respondió con código HTTP {resp.status_code}."
 
@@ -211,7 +212,6 @@ class CloudSyncManager:
 
     def _read_json_file(self, file_path: str) -> Any:
         if os.path.exists(file_path):
-            text = ""
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
                     return json.load(f)
