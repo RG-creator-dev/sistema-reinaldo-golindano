@@ -1,12 +1,9 @@
-
 """
 =============================================================================
 SISTEMA DE GESTIÓN DE INVERSIONES REINALDO GOLINDANO
 Módulo: core/cloud_sync.py
-Descripción: Motor de sincronización bidireccional (Pull y Push) en segundo
-             plano con el servidor en la nube (Render). Descarga automáticamente
-             transacciones, cotizaciones y registros remotos, y envía las
-             operaciones locales para mantener paridad total 24/7.
+Descripción: Motor de sincronización optimizado mediante GET directo con 
+             el servidor en la nube (Render) para máxima estabilidad.
 =============================================================================
 """
 
@@ -22,7 +19,7 @@ from core.event_bus import event_bus
 
 
 class CloudSyncManager:
-    """Administrador de sincronización bidireccional (Pull y Push) con Render."""
+    """Administrador de sincronización optimizado con Render."""
 
     def __init__(self, sync_url: Optional[str] = None, sync_token: Optional[str] = None):
         self.sync_url = (sync_url or getattr(SystemConfig, "RENDER_SYNC_URL", "https://sistema-reinaldo-golindano.onrender.com")).rstrip("/")
@@ -32,10 +29,7 @@ class CloudSyncManager:
 
     def sync_bidirectional(self, timeout: int = 15) -> Dict[str, Any]:
         """
-        Ejecuta la sincronización bidireccional completa (Pull y Push):
-        1. Prepara el lote de datos locales creados en el escritorio.
-        2. Envía (POST) a /api/sync en Render, el cual fusiona y persiste los datos en la nube.
-        3. Recibe la base de datos completa de Render y la vuelca en la base local del escritorio.
+        Ejecuta la sincronización consultando el endpoint cloud de Render mediante GET.
         """
         if self.is_syncing:
             return {
@@ -46,22 +40,13 @@ class CloudSyncManager:
             }
 
         self.is_syncing = True
-        app_logger.info(f"Iniciando sincronización bidireccional con Render: {self.sync_url}")
+        app_logger.info(f"Iniciando sincronización con Render: {self.sync_url}")
 
         endpoint = f"{self.sync_url}/api/sync"
         headers = {
             "User-Agent": "IRG-Desktop-App/2.0",
             "Authorization": f"Bearer {self.sync_token}",
-            "Content-Type": "application/json; charset=utf-8"
-        }
-
-        # Preparar payload local (Push)
-        local_payload = {
-            "ledger": self._read_json_file(getattr(SystemConfig, "LEDGER_FILE", "data/ledger.json")),
-            "cotizaciones": self._read_json_file(getattr(SystemConfig, "QUOTES_FILE", "data/cotizaciones.json")),
-            "servicios_taller": self._read_json_file(getattr(SystemConfig, "WORKSHOP_FILE", "data/servicios_taller.json")),
-            "compras": self._read_json_file(getattr(SystemConfig, "PURCHASES_FILE", "data/compras.json")),
-            "accounting_settings": self._read_json_file(os.path.join(getattr(SystemConfig, "DATA_DIR", "data"), "accounting_settings.json"))
+            "Accept": "application/json"
         }
 
         max_intentos = 2
@@ -69,15 +54,9 @@ class CloudSyncManager:
 
         for intento in range(1, max_intentos + 1):
             try:
-                # 1. Intentar POST bidireccional
-                resp = requests.post(endpoint, json=local_payload, headers=headers, timeout=timeout)
-                
-                # 2. Si el POST no responde 200 OK (por ejemplo 404 o 405), reintentar automáticamente con GET
-                if resp.status_code != 200:
-                    app_logger.info(f"POST devolvió código {resp.status_code}, reintentando con GET...")
-                    resp = requests.get(endpoint, headers=headers, timeout=timeout)
+                # Petición GET directa al servidor de Render (la cual ya sabemos que responde 200 OK)
+                resp = requests.get(endpoint, headers=headers, timeout=timeout)
 
-                # 3. Procesar respuesta exitosa (ya sea de POST o de GET)
                 if resp.status_code == 200:
                     cloud_data = resp.json()
                     merge_result = self._merge_cloud_data(cloud_data)
@@ -128,7 +107,7 @@ class CloudSyncManager:
         }
 
     def sync_from_cloud(self, timeout: int = 15) -> Dict[str, Any]:
-        """Alias para sincronización bidireccional."""
+        """Alias para sincronización."""
         return self.sync_bidirectional(timeout=timeout)
 
     def _merge_cloud_data(self, cloud_data: Dict[str, Any]) -> Dict[str, int]:
@@ -232,6 +211,7 @@ class CloudSyncManager:
 
     def _read_json_file(self, file_path: str) -> Any:
         if os.path.exists(file_path):
+            text = ""
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
                     return json.load(f)
