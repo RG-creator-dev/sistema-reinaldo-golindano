@@ -1,3 +1,4 @@
+
 """
 =============================================================================
 SISTEMA DE GESTIÓN DE INVERSIONES REINALDO GOLINDANO
@@ -68,20 +69,22 @@ class CloudSyncManager:
 
         for intento in range(1, max_intentos + 1):
             try:
-                # 1. Intentar POST bidireccional (Push + Pull atómico)
+                # 1. Intentar POST bidireccional
                 resp = requests.post(endpoint, json=local_payload, headers=headers, timeout=timeout)
                 
-                # Si el endpoint responde 405 (Method Not Allowed), intentar GET (Pull clásico)
-                if resp.status_code == 405:
+                # 2. Si el POST no responde 200 OK (por ejemplo 404 o 405), reintentar automáticamente con GET
+                if resp.status_code != 200:
+                    app_logger.info(f"POST devolvió código {resp.status_code}, reintentando con GET...")
                     resp = requests.get(endpoint, headers=headers, timeout=timeout)
 
+                # 3. Procesar respuesta exitosa (ya sea de POST o de GET)
                 if resp.status_code == 200:
                     cloud_data = resp.json()
                     merge_result = self._merge_cloud_data(cloud_data)
                     self.last_sync_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
                     app_logger.info(
-                        f"Sincronización bidireccional exitosa: "
+                        f"Sincronización exitosa: "
                         f"+{merge_result['new_transactions']} transacciones nuevas, +{merge_result['new_quotes']} cotizaciones nuevas."
                     )
 
@@ -103,7 +106,7 @@ class CloudSyncManager:
 
                 elif resp.status_code == 404:
                     app_logger.warning("El servidor Render respondió 404 en /api/sync.")
-                    last_error = "Endpoint /api/sync en proceso de activación o despliegue en Render."
+                    last_error = "Endpoint /api/sync no encontrado o no disponible en Render."
                 else:
                     last_error = f"Servidor Render respondió con código HTTP {resp.status_code}."
 
