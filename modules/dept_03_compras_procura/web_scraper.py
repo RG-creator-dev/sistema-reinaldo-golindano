@@ -3,14 +3,15 @@
 SISTEMA DE GESTIÓN DE INVERSIONES REINALDO GOLINDANO
 Departamento: COMPRAS Y PROCURA
 Módulo: web_scraper.py
-Descripción: Código exacto del rastreador web de Reinaldo sin filtros estrictos
-             que bloqueen las respuestas si la web abierta tarda en responder.
+Descripción: Código definitivo con enlaces reales directos sin redirección
+             a búsquedas de Google.
 =============================================================================
 """
 
 import os
 import time
 import requests
+import urllib.parse
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from config import SystemConfig
@@ -62,7 +63,8 @@ class CalculadoraImportacionZoom:
 
 class GlobalWebScraper:
     """
-    Rastreador web global: lógica exacta de escritorio sin bloqueos restrictivos.
+    Rastreador web global de Inversiones Reinaldo Golindano con enlaces directos
+    y limpios a tiendas y plataformas oficiales.
     """
 
     def __init__(self):
@@ -70,7 +72,6 @@ class GlobalWebScraper:
         if not self.api_key:
             app_logger.warning("No se encontró la GEMINI_API_KEY configurada.")
         
-        # Compatibilidad exacta de la librería Gemini
         self.usar_genai_nuevo = False
         try:
             from google import genai
@@ -96,14 +97,14 @@ class GlobalWebScraper:
 
     def buscar_sitios_web(self, busqueda: str, max_resultados: int = 20, ambito: str = "Nacional"):
         """
-        Busca páginas web aplicando la misma lógica del script de escritorio.
+        Busca páginas web y extrae URLs directas reales.
         """
         if ambito == "Internacional":
             query = f"{busqueda} (site:amazon.com OR site:ebay.com OR site:aliexpress.com OR site:alibaba.com) -site:.ve -site:mercadolibre.com.ve -venezuela"
         else:
             query = f"{busqueda} precio Venezuela -site:mercadolibre.com.ve"
 
-        url_busqueda = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(query)}"
+        url_busqueda = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
         
         resultados = []
         try:
@@ -117,11 +118,18 @@ class GlobalWebScraper:
                     href = link.get("href")
                     if href and "uddg=" in href:
                         url_real = href.split("uddg=")[1].split("&")[0]
-                        url_real = requests.utils.unquote(url_real)
+                        url_real = urllib.parse.unquote(url_real)
                         
                         if ambito == "Internacional" and any(x in url_real.lower() for x in [".ve", "mercadolibre", "venezuela"]):
                             continue
                         
+                        if "mercadolibre" in url_real.lower():
+                            continue
+                        
+                        # Filtrar búsquedas genéricas de motores
+                        if "google.com/search" in url_real.lower() or "duckduckgo.com" in url_real.lower():
+                            continue
+
                         snippet_text = snippets[i].get_text(strip=True) if i < len(snippets) else "Sin descripción"
                         
                         resultados.append({
@@ -131,27 +139,41 @@ class GlobalWebScraper:
         except Exception as e:
             app_logger.warning(f"Error durante el rastreo web: {e}")
 
-        # Respaldo flexible para que nunca devuelva lista vacía
+        # Respaldo con URLs de tiendas reales y plataformas específicas (NUNCA google.com/search)
         if not resultados:
-            termino_limpio = busqueda.replace("/", " ").strip()
+            encoded_prod = urllib.parse.quote(busqueda)
             if ambito == "Internacional":
                 resultados = [
-                    {"url": f"https://www.amazon.com/s?k={requests.utils.quote(termino_limpio)}", "resumen": f"Amazon Global - Catálogo para '{busqueda}'"},
-                    {"url": f"https://www.ebay.com/sch/i.html?_nkw={requests.utils.quote(termino_limpio)}&_sop=12", "resumen": f"eBay Global - Menor precio para '{busqueda}'"}
+                    {"url": f"https://www.amazon.com/s?k={encoded_prod}", "resumen": f"Catálogo oficial Amazon para '{busqueda}'"},
+                    {"url": f"https://www.ebay.com/sch/i.html?_nkw={encoded_prod}&_sop=12", "resumen": f"Listado eBay para '{busqueda}'"},
+                    {"url": f"https://www.aliexpress.com/wholesale?SearchText={encoded_prod}", "resumen": f"AliExpress Global para '{busqueda}'"}
                 ]
             else:
                 resultados = [
-                    {"url": f"https://www.google.com/search?q={requests.utils.quote(termino_limpio)}+precio+Venezuela", "resumen": f"Búsqueda general en plaza nacional para '{busqueda}'"}
+                    {"url": f"https://ioniashop.com", "resumen": f"IoniaShop Venezuela - Tienda de suministros e insumos"},
+                    {"url": f"https://officenet.net.ve", "resumen": f"OfficeNet Venezuela - Proveedor corporativo"},
+                    {"url": f"https://compumall.com.ve", "resumen": f"CompuMall Venezuela - Repuestos de impresión"}
                 ]
 
         return resultados
 
     def analizar_con_gemini_v2(self, producto: str, datos_extraidos: list, ambito: str = "Nacional", incluye_importacion: bool = False):
         """
-        Procesa el análisis con Gemini de forma fluida y sin restricciones de bloqueo.
+        Procesa el análisis con Gemini exigiendo URLs reales de tiendas y plataformas.
         """
+        encoded_prod = urllib.parse.quote(producto)
+
         if not datos_extraidos:
-            datos_extraidos = [{"url": "https://www.google.com", "resumen": f"Búsqueda general para {producto}"}]
+            if ambito == "Internacional":
+                datos_extraidos = [
+                    {"url": f"https://www.amazon.com/s?k={encoded_prod}", "resumen": f"Amazon Global para {producto}"},
+                    {"url": f"https://www.ebay.com/sch/i.html?_nkw={encoded_prod}", "resumen": f"eBay Global para {producto}"}
+                ]
+            else:
+                datos_extraidos = [
+                    {"url": "https://ioniashop.com", "resumen": f"IoniaShop Venezuela para {producto}"},
+                    {"url": "https://officenet.net.ve", "resumen": f"OfficeNet Venezuela para {producto}"}
+                ]
 
         if ambito == "Internacional":
             restriccion_geografica = (
@@ -159,7 +181,7 @@ class GlobalWebScraper:
                 "Prioriza hallazgos de plataformas globales como Amazon, AliExpress, eBay o Alibaba."
             )
             instruccion_ubicacion = (
-                "🌍 **Ubicación Geográfica / Plataforma:** Indica claramente la tienda o plataforma global de origen (Ej: *Amazon - Estados Unidos*, *eBay - Estados Unidos* o *Aliexpress - China*)."
+                "🌍 **Ubicación Geográfica / Plataforma:** Indica claramente la tienda o plataforma global de origen (Ej: *Amazon - Estados Unidos*, *eBay - Estados Unidos* o *AliExpress - China*)."
             )
         else:
             restriccion_geografica = "Ámbito Nacional de Venezuela."
@@ -168,12 +190,12 @@ class GlobalWebScraper:
         if incluye_importacion:
             instruccion_zoom = (
                 "INSTRUCCIÓN DE LOGÍSTICA ZOOM CASILLEROS:\n"
-                "Para CADA opción, incluye de forma integrada un desglose estimado de importación:\n"
+                "Para CADA opción, incluye un desglose estimado de importación:\n"
                 "- Flete y manejo estimado vía Zoom Casilleros.\n"
                 "- Costo total aproximado Puesto en Taller (Precio Base + Flete)."
             )
         else:
-            instruccion_zoom = "INSTRUCCIÓN LOGÍSTICA: Muestra únicamente los precios base de los proveedores en USD."
+            instruccion_zoom = "INSTRUCCIÓN LOGÍSTICA: Muestra únicamente precios base en USD."
 
         prompt = f"""
         Eres un asistente analista de compras experto y estratega comercial para "Inversiones Reinaldo Golindano".
@@ -181,18 +203,18 @@ class GlobalWebScraper:
         Ámbito seleccionado: {ambito}
         {restriccion_geografica}
         
-        A continuación tienes una lista de resultados extraídos de la web abierta:
+        Resultados extraídos de la web abierta:
         {datos_extraidos}
         
-        INSTRUCCIONES DE FORMATO Y ENLACES DIRECTOS:
-        1. Analiza los resultados y selecciona las mejores opciones. ORDÉNALAS ESTRICTAMENTE DE MENOR A MAYOR PRECIO BASE (la más económica de primera como Opción 1).
-        2. Presenta la información limpia y estructurada.
+        REGLAS ESTRICTAS DE FORMATO Y ENLACES:
+        1. Presenta de 4 a 6 opciones estructuradas, ORDENADAS STRICTAMENTE DE MENOR A MAYOR PRECIO BASE.
+        2. PROHIBICIÓN ABSOLUTA: PROHIBIDO USAR ENLACES DE BÚSQUEDA DE GOOGLE (como `google.com/search`).
         3. Para CADA opción, detalla:
            - Nombre de la plataforma / Proveedor
-           - Precio Base exacto estimado
+           - Precio Base exacto estimado en USD
            - {instruccion_ubicacion}
            - Descripción analítica del valor para la competitividad del taller
-           - **Enlace directo interactivo OBLIGATORIO:** Utiliza las URLs provistas en los resultados de búsqueda web. Formato estricto: **Enlace:** [Texto descriptivo](URL)
+           - **Enlace:** Usa la URL directa extraída del proveedor. Si la opción es de una plataforma (Amazon, eBay, AliExpress, Alibaba), usa su enlace directo de búsqueda (ej. `https://www.amazon.com/s?k={encoded_prod}` o `https://www.ebay.com/sch/i.html?_nkw={encoded_prod}`). Si es tienda nacional, usa su sitio oficial directo (ej. `https://ioniashop.com`).
            - {instruccion_zoom}
         """
 
