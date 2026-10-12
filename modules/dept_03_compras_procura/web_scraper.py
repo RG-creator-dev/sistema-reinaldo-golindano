@@ -3,8 +3,8 @@
 SISTEMA DE GESTIÓN DE INVERSIONES REINALDO GOLINDANO
 Departamento: COMPRAS Y PROCURA
 Módulo: web_scraper.py
-Descripción: Rastreador Web Global con separación total entre la lógica Nacional 
-             (preservada 100% idéntica) y la lógica Internacional.
+Descripción: Rastreador Web Global con resiliencia multicapa para evitar
+             bloqueos de consulta y garantizar enlaces directos y útiles.
 =============================================================================
 """
 
@@ -71,6 +71,7 @@ class GlobalWebScraper:
         if not self.api_key:
             app_logger.warning("No se encontró la GEMINI_API_KEY en la configuración.")
 
+        # Compatibilidad de la librería Gemini
         self.usar_genai_nuevo = False
         try:
             from google import genai
@@ -96,12 +97,11 @@ class GlobalWebScraper:
 
     def buscar_sitios_web(self, busqueda: str, max_resultados: int = 20, ambito: str = "Nacional"):
         """
-        Rastrea páginas web con ramificación estricta por ámbito.
+        Rastrea páginas web evitando filtros bloqueantes y aplicando fallback inteligente.
         """
         if ambito == "Internacional":
             query = f"{busqueda} (site:amazon.com OR site:ebay.com OR site:aliexpress.com OR site:alibaba.com) -site:.ve -site:mercadolibre.com.ve -venezuela"
         else:
-            # Lógica Nacional Exitosa Preservada
             query = f"{busqueda} precio Venezuela -site:mercadolibre.com.ve"
 
         url_busqueda = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
@@ -135,7 +135,7 @@ class GlobalWebScraper:
         except Exception as e:
             app_logger.warning(f"Aviso durante el rastreo web: {e}")
 
-        # Respaldos separados por ámbito
+        # Si la red o DuckDuckGo bloquea momentáneamente, la Capa 2 asegura opciones directas
         if not resultados:
             encoded_term = urllib.parse.quote(busqueda)
             if ambito == "Internacional":
@@ -155,7 +155,7 @@ class GlobalWebScraper:
 
     def analizar_con_gemini_v2(self, producto: str, datos_extraidos: list, ambito: str = "Nacional", incluye_importacion: bool = False):
         """
-        Genera el dictamen analítico con reglas diferenciadas entre Nacional e Internacional.
+        Genera el dictamen analítico con Gemini sin bloqueos por criterios vacíos.
         """
         encoded_term = urllib.parse.quote(producto)
 
@@ -171,64 +171,57 @@ class GlobalWebScraper:
                     {"url": "https://officenet.net.ve", "resumen": f"OfficeNet Venezuela para {producto}"}
                 ]
 
+        if ambito == "Internacional":
+            restriccion_geografica = (
+                "REGLA CRÍTICA: ÁMBITO INTERNACIONAL EXCLUSIVO. Prohibido incluir proveedores de Venezuela. "
+                "Prioriza hallazgos de plataformas globales como Amazon, AliExpress, eBay o Alibaba."
+            )
+            instruccion_ubicacion = (
+                "🌍 **Ubicación Geográfica / Plataforma:** Indica claramente la tienda o plataforma global de origen (Ej: *Amazon - Estados Unidos*, *eBay - Estados Unidos* o *AliExpress - China*)."
+            )
+        else:
+            restriccion_geografica = "Ámbito Nacional de Venezuela."
+            instruccion_ubicacion = "📍 **Ubicación Geográfica:** Indica la ciudad o estado del proveedor dentro de Venezuela."
+
         estimacion = self.calc_zoom.estimar_peso_volumen(producto)
         peso_est = float(estimacion["peso_lb"])
+        vol_est = float(estimacion["volumen_ft3"])
+        es_pesado = bool(estimacion["es_pesado"])
+
         flete_aereo_est = max(peso_est * self.calc_zoom.tarifa_aerea_lb, 10.00)
 
-        # RAMA 1: BÚSQUEDA NACIONAL (Prompt exacto del código exitoso)
-        if ambito != "Internacional":
-            prompt = f"""
-            Eres un asistente analista de compras experto y estratega comercial para "Inversiones Reinaldo Golindano".
-            El usuario está buscando: "{producto}".
-            Ámbito seleccionado: Nacional de Venezuela.
-            
-            Resultados extraídos de la web abierta:
-            {datos_extraidos}
-            
-            INSTRUCCIONES DE FORMATO Y ENLACES DIRECTOS:
-            1. Analiza los resultados y selecciona las mejores opciones (mínimo 4 a 5 opciones variadas). ORDÉNALAS ESTRICTAMENTE DE MENOR A MAYOR PRECIO BASE.
-            2. Presenta la información limpia, técnica y estructurada.
-            3. Para CADA opción, detalla:
-               - Nombre de la plataforma / Proveedor
-               - Precio Base exacto estimado en USD
-               - 📍 **Ubicación Geográfica:** Indica la ciudad o estado del proveedor dentro de Venezuela.
-               - Descripción analítica del valor para la competitividad del taller
-               - **Enlace directo interactivo OBLIGATORIO:** Utiliza la URL limpia directa provista en los datos extraídos (ficha técnica o producto). Formato estricto: **Enlace:** [Texto descriptivo](URL)
-               - INSTRUCCIÓN LOGÍSTICA: Muestra únicamente los precios base de los proveedores sin fletes de casillero.
-            """
-
-        # RAMA 2: BÚSQUEDA INTERNACIONAL
+        if incluye_importacion:
+            instruccion_zoom = (
+                f"INSTRUCCIÓN DE LOGÍSTICA ZOOM CASILLEROS (CASILLA TILDADA):\n"
+                f"Para CADA opción, incluye de forma integrada un desglose estimado de importación (peso est: ~{peso_est} lbs):\n"
+                f"- Flete aéreo estimado: ${(flete_aereo_est + 5):,.2f} USD Puesto en Taller."
+            )
         else:
-            if incluye_importacion:
-                instruccion_zoom = (
-                    f"INSTRUCCIÓN DE LOGÍSTICA ZOOM CASILLEROS (CASILLA TILDADA):\n"
-                    f"Para CADA opción, incluye de forma integrada un desglose estimado de importación (peso est: ~{peso_est} lbs):\n"
-                    f"- Flete aéreo estimado: ${(flete_aereo_est + 5):,.2f} USD Puesto en Taller.\n"
-                    f"- Indica si el precio base corresponde a unidad suelta o lote/pack (ej. paquete de 2 piezas)."
-                )
-            else:
-                instruccion_zoom = "INSTRUCCIÓN LOGÍSTICA: Muestra únicamente precios base en USD."
+            instruccion_zoom = (
+                "INSTRUCCIÓN LOGÍSTICA: La casilla de cálculo de importación NO está tildada. "
+                "Muestra únicamente los precios base de los proveedores sin fletes de casillero."
+            )
 
-            prompt = f"""
-            Eres un asistente analista de compras experto y estratega comercial para "Inversiones Reinaldo Golindano".
-            El usuario está buscando: "{producto}".
-            Ámbito seleccionado: Internacional (Exclusivo fuera de Venezuela).
-            REGLA CRÍTICA: Prohibido incluir proveedores de Venezuela. Prioriza hallazgos de plataformas globales como Amazon, AliExpress, eBay o Alibaba.
-            
-            Resultados extraídos de la web abierta:
-            {datos_extraidos}
-            
-            INSTRUCCIONES DE FORMATO Y ENLACES DIRECTOS:
-            1. Analiza los resultados y selecciona las mejores opciones (mínimo 4 opciones variadas). ORDÉNALAS ESTRICTAMENTE DE MENOR A MAYOR PRECIO BASE.
-            2. Presenta la información limpia, técnica y estructurada.
-            3. Para CADA opción, detalla:
-               - Nombre de la plataforma / Proveedor
-               - Precio Base exacto estimado en USD (Aclara si es precio unitario o por paquete/pack)
-               - 🌍 **Ubicación Geográfica / Plataforma:** Indica claramente la tienda o plataforma global de origen.
-               - Descripción analítica del valor para la competitividad del taller
-               - **Enlace directo interactivo OBLIGATORIO:** Si la opción corresponde a plataformas como Amazon, eBay o AliExpress, utiliza su URL de búsqueda estructurada directa (`https://www.amazon.com/s?k={encoded_term}`). Formato estricto: **Enlace:** [Texto descriptivo](URL)
-               - {instruccion_zoom}
-            """
+        prompt = f"""
+        Eres un asistente analista de compras experto y estratega comercial para "Inversiones Reinaldo Golindano".
+        El usuario está buscando: "{producto}".
+        Ámbito seleccionado: {ambito}
+        {restriccion_geografica}
+        
+        Resultados extraídos de la web abierta:
+        {datos_extraidos}
+        
+        INSTRUCCIONES DE FORMATO Y ENLACES DIRECTOS:
+        1. Analiza los resultados y selecciona las mejores opciones (mínimo 4 a 5 opciones variadas). ORDÉNALAS ESTRICTAMENTE DE MENOR A MAYOR PRECIO BASE.
+        2. Presenta la información limpia, técnica y estructurada.
+        3. Para CADA opción, detalla:
+           - Nombre de la plataforma / Proveedor
+           - Precio Base exacto estimado en USD
+           - {instruccion_ubicacion}
+           - Descripción analítica del valor para la competitividad del taller
+           - **Enlace directo interactivo OBLIGATORIO:** Utiliza la URL provista en los datos extraídos. Si la opción corresponde a plataformas como Amazon, eBay o AliExpress, utiliza su URL de búsqueda estructurada directa (`https://www.amazon.com/s?k={encoded_term}`). Si es un proveedor nacional, utiliza la URL limpia directa. Formato estricto: **Enlace:** [Texto descriptivo](URL)
+           - {instruccion_zoom}
+        """
 
         modelos = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-1.5-flash", "gemini-pro"]
 
