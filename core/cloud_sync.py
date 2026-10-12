@@ -3,7 +3,7 @@
 SISTEMA DE GESTIÓN DE INVERSIONES REINALDO GOLINDANO
 Módulo: core/cloud_sync.py
 Descripción: Motor de sincronización optimizado hacia el servidor en la nube
-             (Render) asegurando conexión directa y paridad de datos.
+             (Render) con revisión exhaustiva y autocompilación de PDFs faltantes.
 =============================================================================
 """
 
@@ -16,13 +16,13 @@ from typing import Dict, Any, List, Optional
 from config import SystemConfig
 from core.logger import app_logger
 from core.event_bus import event_bus
+from modules.dept_02_comercio_ventas.pdf_generator import PDFQuoteGenerator
 
 
 class CloudSyncManager:
     """Administrador de sincronización con el servidor central en Render."""
 
     def __init__(self, sync_url: Optional[str] = None, sync_token: Optional[str] = None):
-        # URL fija directa a producción para evitar lecturas de configuración obsoleta
         self.sync_url = "https://sistema-reinaldo-golindano.onrender.com"
         self.sync_token = sync_token or getattr(SystemConfig, "RENDER_SYNC_TOKEN", "inversiones_reinaldo_golindano_sync_key")
         self.last_sync_time: Optional[str] = None
@@ -55,7 +55,6 @@ class CloudSyncManager:
 
         for intento in range(1, max_intentos + 1):
             try:
-                # Petición GET directa a la URL oficial
                 resp = requests.get(endpoint, headers=headers, timeout=timeout)
 
                 if resp.status_code == 200:
@@ -68,7 +67,6 @@ class CloudSyncManager:
                         f"+{merge_result['new_transactions']} transacciones nuevas, +{merge_result['new_quotes']} cotizaciones nuevas."
                     )
 
-                    # Emitir evento global en el sistema local
                     event_bus.emit("cloud_sync_completed", {
                         "timestamp": self.last_sync_time,
                         "new_transactions": merge_result["new_transactions"],
@@ -112,7 +110,7 @@ class CloudSyncManager:
         return self.sync_bidirectional(timeout=timeout)
 
     def _merge_cloud_data(self, cloud_data: Dict[str, Any]) -> Dict[str, int]:
-        """Fusiona los datos remotos con la base local asegurando no duplicar IDs."""
+        """Fusiona los datos remotos con la base local y asegura que TODOS los PDFs existan físicamente."""
         new_trx_count = 0
         new_quote_count = 0
         new_workshop_count = 0
@@ -147,32 +145,62 @@ class CloudSyncManager:
 
             if added_trx:
                 self._write_json_file(local_ledger_path, local_ledger)
-                finances_path = getattr(SystemConfig, "FINANCES_FILE", "data/finanzas.json")
+                finances_path = getattr(SystemConfig, "FINANCES_FILE", "data/finances.json")
                 if finances_path and finances_path != local_ledger_path:
                     self._write_json_file(finances_path, local_ledger)
                 new_trx_count = len(added_trx)
 
-        # 2. Fusionar Cotizaciones
+        # 2. Fusionar Cotizaciones y REVISAR TODA LA LISTA para autocompilar PDFs faltantes
         remote_quotes = cloud_data.get("cotizaciones") or cloud_data.get("quotes") or []
         if isinstance(remote_quotes, list) and remote_quotes:
             local_quotes_path = getattr(SystemConfig, "QUOTES_FILE", "data/cotizaciones.json")
             local_quotes = self._read_json_file(local_quotes_path)
             
-            existing_quote_ids = {r.get("quote_id") for r in local_quotes if r.get("quote_id")}
-            
-            added_quotes = []
-            for q in remote_quotes:
-                qid = q.get("quote_id")
-                if qid and qid in existing_quote_ids:
-                    continue
-                local_quotes.append(q)
-                added_quotes.append(q)
-                if qid:
-                    existing_quote_ids.add(qid)
+            existing_quote_map = {r.get("quote_id"): r for r in local_quotes if r.get("quote_id")}
+            added_quotes_count = 0
 
-            if added_quotes:
+            # Primero unificamos cotizaciones nuevas de la nube al archivo local
+            for q in remote_quotes:
+                qid = q.get("quote_id") or f"COT-{int(time.time())}"
+                q["quote_id"] = qid
+                if qid not in existing_quote_map:
+                    local_quotes.append(q)
+                    existing_quote_map[qid] = q
+                    added_quotes_count += 1
+
+            # SEGUNDO: PASADA GENERAL SOBRE TODAS LAS COTIZACIONES LOCALES
+            # Esto garantiza que CUALQUIER cotización sin PDF físico en la PC lo genere ahora mismo
+            pdf_generated_any = False
+            for q in local_quotes:
+                qid = q.get("quote_id")
+                current_pdf_path = q.get("pdf_path", "")
+                
+                # Verificamos si el archivo físico existe realmente en el disco duro
+                pdf_exists = current_pdf_path and os.path.exists(current_pdf_path)
+
+                if not pdf_exists:
+                    try:
+                        generated_pdf = PDFQuoteGenerator.generate(
+                            quote_id=qid or "COT-REMOTE",
+                            client_name=q.get("client_name", "Cliente Particular"),
+                            client_rif=q.get("client_rif", "N/A"),
+                            client_phone=q.get("client_phone", "N/A"),
+                            client_company=q.get("client_company", "Particular"),
+                            items=q.get("items", []),
+                            tax_percent=float(q.get("tax_percent", 16.0)),
+                            bcv_rate=float(q.get("bcv_rate", 849.56)),
+                            notes=q.get("notes", "")
+                        )
+                        q["pdf_path"] = generated_pdf
+                        pdf_generated_any = True
+                        app_logger.info(f"PDF autocompilado con éxito en revisión general: {generated_pdf}")
+                    except Exception as err_pdf:
+                        app_logger.error(f"Error autocompilando PDF para cotización {qid}: {err_pdf}")
+
+            # Guardamos cambios si hubo nuevas cotizaciones o PDFs generados
+            if added_quotes_count > 0 or pdf_generated_any:
                 self._write_json_file(local_quotes_path, local_quotes)
-                new_quote_count = len(added_quotes)
+                new_quote_count = added_quotes_count
 
         # 3. Fusionar Taller / Servicios
         remote_workshop = cloud_data.get("servicios_taller") or cloud_data.get("workshop") or []

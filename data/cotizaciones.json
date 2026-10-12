@@ -67,5 +67,34 @@
     "total_bs": 40208.44,
     "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1003_20261002_234206.pdf",
     "status": "Emitida"
+  },
+  {
+    "bcv_rate": 875.6505,
+    "client_name": "Cliente Particular",
+    "client_phone": "N/A",
+    "client_rif": "N/A",
+    "date": "2026-10-10 14:58:04",
+    "items": [
+      {
+        "description": "Servicio de reparación técnica de impresora",
+        "price_usd": 40.0,
+        "qty": 1,
+        "specs": "Para impresora Epson EcoTank L3250"
+      },
+      {
+        "description": "Almohadilla de tinta (Caja/Esponjas de mantenimiento)",
+        "price_usd": 15.0,
+        "qty": 1,
+        "specs": "Repuesto compatible con Epson L3250"
+      }
+    ],
+    "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1004_20261012_050557.pdf",
+    "quote_id": "COT-1004",
+    "status": "Emitida",
+    "subtotal_usd": 55.0,
+    "tax_percent": 16.0,
+    "tax_usd": 8.8,
+    "total_bs": 55866.5,
+    "total_usd": 63.8
   }
 ]

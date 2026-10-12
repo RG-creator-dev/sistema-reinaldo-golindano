@@ -118,5 +118,17 @@
     "category": "Sueldo",
     "description": "Pago sueldo",
     "ref_code": "10524"
+  },
+  {
+    "amount_bs": 1250.0,
+    "amount_usd": 1.43,
+    "bcv_rate": 875.6505,
+    "category": "Sueldo",
+    "date": "2026-10-10 15:09:27",
+    "description": "Pago de sueldo",
+    "id": "TRX-1791644967957",
+    "method": "Provincial",
+    "ref_code": "10533",
+    "type": "Egreso"
   }
 ]
