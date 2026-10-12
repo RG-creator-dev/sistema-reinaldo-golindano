@@ -3,21 +3,20 @@
 SISTEMA DE GESTIÓN DE INVERSIONES REINALDO GOLINDANO
 Departamento: COMPRAS Y PROCURA
 Módulo: web_scraper.py
-Descripción: Código definitivo con enlaces reales directos sin redirección
-             a búsquedas de Google.
+Descripción: Código 100% idéntico y puro del rastreador web de escritorio de Reinaldo,
+             integrado sin alterar su lógica de extracción ni análisis.
 =============================================================================
 """
 
 import os
 import time
 import requests
-import urllib.parse
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from config import SystemConfig
 from core.logger import app_logger
 
-# Cargar variables de entorno por compatibilidad
+# Cargar variables de entorno
 load_dotenv()
 
 
@@ -63,32 +62,24 @@ class CalculadoraImportacionZoom:
 
 class GlobalWebScraper:
     """
-    Rastreador web global de Inversiones Reinaldo Golindano con enlaces directos
-    y limpios a tiendas y plataformas oficiales.
+    Rastreador web global: lógica 100% idéntica al script de escritorio de Reinaldo.
     """
 
     def __init__(self):
         self.api_key = getattr(SystemConfig, "GEMINI_API_KEY", "") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         if not self.api_key:
-            app_logger.warning("No se encontró la GEMINI_API_KEY configurada.")
+            raise ValueError("No se encontró la GEMINI_API_KEY en el archivo .env o configuración del sistema")
         
-        self.usar_genai_nuevo = False
+        # Compatibilidad exacta de la librería Gemini de tu script de escritorio
         try:
             from google import genai
-            if self.api_key:
-                self.client = genai.Client(api_key=self.api_key)
-                self.usar_genai_nuevo = True
+            self.client = genai.Client(api_key=self.api_key)
+            self.usar_genai_nuevo = True
         except Exception:
-            pass
-
-        if not self.usar_genai_nuevo and self.api_key:
-            try:
-                import google.generativeai as genai_old
-                genai_old.configure(api_key=self.api_key)
-                self.model_old = genai_old.GenerativeModel("gemini-3.6-flash")
-                self.usar_genai_nuevo = False
-            except Exception:
-                pass
+            import google.generativeai as genai_old
+            genai_old.configure(api_key=self.api_key)
+            self.model_old = genai_old.GenerativeModel("gemini-3.6-flash")
+            self.usar_genai_nuevo = False
 
         self.calc_zoom = CalculadoraImportacionZoom()
         self.headers = {
@@ -97,14 +88,15 @@ class GlobalWebScraper:
 
     def buscar_sitios_web(self, busqueda: str, max_resultados: int = 20, ambito: str = "Nacional"):
         """
-        Busca páginas web y extrae URLs directas reales.
+        Busca páginas web y grandes plataformas de comercio global excluyendo totalmente Venezuela si es internacional
+        (Lógica exacta y pura de tu script de escritorio).
         """
         if ambito == "Internacional":
             query = f"{busqueda} (site:amazon.com OR site:ebay.com OR site:aliexpress.com OR site:alibaba.com) -site:.ve -site:mercadolibre.com.ve -venezuela"
         else:
             query = f"{busqueda} precio Venezuela -site:mercadolibre.com.ve"
 
-        url_busqueda = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
+        url_busqueda = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(query)}"
         
         resultados = []
         try:
@@ -118,18 +110,11 @@ class GlobalWebScraper:
                     href = link.get("href")
                     if href and "uddg=" in href:
                         url_real = href.split("uddg=")[1].split("&")[0]
-                        url_real = urllib.parse.unquote(url_real)
+                        url_real = requests.utils.unquote(url_real)
                         
                         if ambito == "Internacional" and any(x in url_real.lower() for x in [".ve", "mercadolibre", "venezuela"]):
                             continue
                         
-                        if "mercadolibre" in url_real.lower():
-                            continue
-                        
-                        # Filtrar búsquedas genéricas de motores
-                        if "google.com/search" in url_real.lower() or "duckduckgo.com" in url_real.lower():
-                            continue
-
                         snippet_text = snippets[i].get_text(strip=True) if i < len(snippets) else "Sin descripción"
                         
                         resultados.append({
@@ -139,41 +124,15 @@ class GlobalWebScraper:
         except Exception as e:
             app_logger.warning(f"Error durante el rastreo web: {e}")
 
-        # Respaldo con URLs de tiendas reales y plataformas específicas (NUNCA google.com/search)
-        if not resultados:
-            encoded_prod = urllib.parse.quote(busqueda)
-            if ambito == "Internacional":
-                resultados = [
-                    {"url": f"https://www.amazon.com/s?k={encoded_prod}", "resumen": f"Catálogo oficial Amazon para '{busqueda}'"},
-                    {"url": f"https://www.ebay.com/sch/i.html?_nkw={encoded_prod}&_sop=12", "resumen": f"Listado eBay para '{busqueda}'"},
-                    {"url": f"https://www.aliexpress.com/wholesale?SearchText={encoded_prod}", "resumen": f"AliExpress Global para '{busqueda}'"}
-                ]
-            else:
-                resultados = [
-                    {"url": f"https://ioniashop.com", "resumen": f"IoniaShop Venezuela - Tienda de suministros e insumos"},
-                    {"url": f"https://officenet.net.ve", "resumen": f"OfficeNet Venezuela - Proveedor corporativo"},
-                    {"url": f"https://compumall.com.ve", "resumen": f"CompuMall Venezuela - Repuestos de impresión"}
-                ]
-
         return resultados
 
     def analizar_con_gemini_v2(self, producto: str, datos_extraidos: list, ambito: str = "Nacional", incluye_importacion: bool = False):
         """
-        Procesa el análisis con Gemini exigiendo URLs reales de tiendas y plataformas.
+        Lógica exacta y pura de análisis con Gemini de tu script de escritorio,
+        respetando exactamente tus instrucciones originales.
         """
-        encoded_prod = urllib.parse.quote(producto)
-
         if not datos_extraidos:
-            if ambito == "Internacional":
-                datos_extraidos = [
-                    {"url": f"https://www.amazon.com/s?k={encoded_prod}", "resumen": f"Amazon Global para {producto}"},
-                    {"url": f"https://www.ebay.com/sch/i.html?_nkw={encoded_prod}", "resumen": f"eBay Global para {producto}"}
-                ]
-            else:
-                datos_extraidos = [
-                    {"url": "https://ioniashop.com", "resumen": f"IoniaShop Venezuela para {producto}"},
-                    {"url": "https://officenet.net.ve", "resumen": f"OfficeNet Venezuela para {producto}"}
-                ]
+            return "No se encontraron tiendas o productos bajo los criterios estrictos internacionales solicitados."
 
         if ambito == "Internacional":
             restriccion_geografica = (
@@ -181,7 +140,7 @@ class GlobalWebScraper:
                 "Prioriza hallazgos de plataformas globales como Amazon, AliExpress, eBay o Alibaba."
             )
             instruccion_ubicacion = (
-                "🌍 **Ubicación Geográfica / Plataforma:** Indica claramente la tienda o plataforma global de origen (Ej: *Amazon - Estados Unidos*, *eBay - Estados Unidos* o *AliExpress - China*)."
+                "🌍 **Ubicación Geográfica / Plataforma:** Indica claramente la tienda o plataforma global de origen (Ej: *Amazon - Estados Unidos*, *eBay - Estados Unidos* o *Aliexpress - China*)."
             )
         else:
             restriccion_geografica = "Ámbito Nacional de Venezuela."
@@ -189,13 +148,16 @@ class GlobalWebScraper:
 
         if incluye_importacion:
             instruccion_zoom = (
-                "INSTRUCCIÓN DE LOGÍSTICA ZOOM CASILLEROS:\n"
-                "Para CADA opción, incluye un desglose estimado de importación:\n"
-                "- Flete y manejo estimado vía Zoom Casilleros.\n"
+                "INSTRUCCIÓN DE LOGÍSTICA ZOOM CASILLEROS (CASILLA TILDADA):\n"
+                "Para CADA opción, incluye de forma integrada un desglose estimado de importación (calculando un peso promedio de 2 lbs para un cartucho de tóner):\n"
+                "- Flete y manejo estimado vía Zoom Casilleros desde su país de origen.\n"
                 "- Costo total aproximado Puesto en Taller (Precio Base + Flete)."
             )
         else:
-            instruccion_zoom = "INSTRUCCIÓN LOGÍSTICA: Muestra únicamente precios base en USD."
+            instruccion_zoom = (
+                "INSTRUCCIÓN LOGÍSTICA: La casilla de cálculo de importación NO está tildada. "
+                "Muestra únicamente los precios base de los proveedores sin fletes de casillero."
+            )
 
         prompt = f"""
         Eres un asistente analista de compras experto y estratega comercial para "Inversiones Reinaldo Golindano".
@@ -203,22 +165,22 @@ class GlobalWebScraper:
         Ámbito seleccionado: {ambito}
         {restriccion_geografica}
         
-        Resultados extraídos de la web abierta:
+        A continuación tienes una lista de resultados extraídos de la web abierta:
         {datos_extraidos}
         
-        REGLAS ESTRICTAS DE FORMATO Y ENLACES:
-        1. Presenta de 4 a 6 opciones estructuradas, ORDENADAS STRICTAMENTE DE MENOR A MAYOR PRECIO BASE.
-        2. PROHIBICIÓN ABSOLUTA: PROHIBIDO USAR ENLACES DE BÚSQUEDA DE GOOGLE (como `google.com/search`).
+        INSTRUCCIONES DE FORMATO Y ENLACES DIRECTOS:
+        1. Analiza los resultados y selecciona las mejores opciones. ORDÉNALAS STRICTAMENTE DE MENOR A MAYOR PRECIO BASE (la más económica de primera como Opción 1).
+        2. Presenta la información limpia y estructurada.
         3. Para CADA opción, detalla:
            - Nombre de la plataforma / Proveedor
-           - Precio Base exacto estimado en USD
+           - Precio Base exacto estimado
            - {instruccion_ubicacion}
            - Descripción analítica del valor para la competitividad del taller
-           - **Enlace:** Usa la URL directa extraída del proveedor. Si la opción es de una plataforma (Amazon, eBay, AliExpress, Alibaba), usa su enlace directo de búsqueda (ej. `https://www.amazon.com/s?k={encoded_prod}` o `https://www.ebay.com/sch/i.html?_nkw={encoded_prod}`). Si es tienda nacional, usa su sitio oficial directo (ej. `https://ioniashop.com`).
+           - **Enlace directo interactivo OBLIGATORIO:** Si la opción corresponde a Amazon, eBay, AliExpress o Alibaba, genera obligatoriamente una URL de búsqueda directa estructurada para ese producto exacto (ej. para Amazon: `https://www.amazon.com/s?k=HP+285A+toner`, para eBay: `https://www.ebay.com/sch/i.html?_nkw=HP+285A+toner`). Formato estricto: **Enlace:** [Texto descriptivo](URL)
            - {instruccion_zoom}
         """
 
-        modelos = ["gemini-3.6-flash", "gemini-3.6-pro", "gemini-3.8-flash", "gemini-1.5-flash", "gemini-pro"]
+        modelos = ["gemini-3.6-flash", "gemini-3.6-pro", "gemini-1.5-flash"]
 
         for modelo in modelos:
             for intento in range(3):
@@ -228,27 +190,24 @@ class GlobalWebScraper:
                             model=modelo,
                             contents=prompt
                         )
-                        if response and response.text:
-                            return response.text.strip()
+                        return response.text
                     else:
                         import google.generativeai as genai_old
                         m = genai_old.GenerativeModel(modelo)
                         response = m.generate_content(prompt)
-                        if response and response.text:
-                            return response.text.strip()
+                        return response.text
                 except Exception as e:
                     err_msg = str(e).lower()
                     if "503" in err_msg or "429" in err_msg or "unavailable" in err_msg or "quota" in err_msg:
-                        time.sleep(3 * (intento + 1))
+                        time.sleep(4 * (intento + 1))
                     else:
                         break
 
-        return "Dictamen generado con éxito. Verifique las opciones y enlaces directos en el panel."
+        return "Los servidores de Google presentan alta demanda momentánea. Por favor, vuelve a presionar el botón de búsqueda en unos segundos."
 
     def analizar_con_gemini(self, producto: str, datos_extraidos: list):
-        """Método de compatibilidad estándar con la interfaz."""
         return self.analizar_con_gemini_v2(producto, datos_extraidos, ambito="Nacional", incluye_importacion=False)
 
 
-# Alias por compatibilidad
+# Alias por compatibilidad exacta
 RastreadorWebGlobal = GlobalWebScraper
