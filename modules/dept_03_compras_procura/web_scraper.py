@@ -3,8 +3,8 @@
 SISTEMA DE GESTIÓN DE INVERSIONES REINALDO GOLINDANO
 Departamento: COMPRAS Y PROCURA
 Módulo: web_scraper.py
-Descripción: Rastreador Web Global con resiliencia multicapa para evitar
-             bloqueos de consulta y garantizar enlaces directos y útiles.
+Descripción: Rastreador Web Global con manejo inteligente de saturación de API 
+             y enlaces directos de respaldo ante alta demanda.
 =============================================================================
 """
 
@@ -63,7 +63,7 @@ class CalculadoraImportacionZoom:
 
 class GlobalWebScraper:
     """
-    Rastreador web global multicapa del Sistema de Gestión Inversiones Reinaldo Golindano.
+    Rastreador web global con control de saturación de API y respaldos interactivos.
     """
 
     def __init__(self):
@@ -71,7 +71,6 @@ class GlobalWebScraper:
         if not self.api_key:
             app_logger.warning("No se encontró la GEMINI_API_KEY en la configuración.")
 
-        # Compatibilidad de la librería Gemini
         self.usar_genai_nuevo = False
         try:
             from google import genai
@@ -96,9 +95,7 @@ class GlobalWebScraper:
         }
 
     def buscar_sitios_web(self, busqueda: str, max_resultados: int = 20, ambito: str = "Nacional"):
-        """
-        Rastrea páginas web evitando filtros bloqueantes y aplicando fallback inteligente.
-        """
+        """Busca páginas web aplicando la lógica de ámbito nacional o internacional."""
         if ambito == "Internacional":
             query = f"{busqueda} (site:amazon.com OR site:ebay.com OR site:aliexpress.com OR site:alibaba.com) -site:.ve -site:mercadolibre.com.ve -venezuela"
         else:
@@ -135,28 +132,23 @@ class GlobalWebScraper:
         except Exception as e:
             app_logger.warning(f"Aviso durante el rastreo web: {e}")
 
-        # Si la red o DuckDuckGo bloquea momentáneamente, la Capa 2 asegura opciones directas
         if not resultados:
             encoded_term = urllib.parse.quote(busqueda)
             if ambito == "Internacional":
                 resultados = [
                     {"url": f"https://www.amazon.com/s?k={encoded_term}", "resumen": f"Catálogo oficial Amazon Global para '{busqueda}'"},
-                    {"url": f"https://www.ebay.com/sch/i.html?_nkw={encoded_term}&_sop=12", "resumen": f"Resultados directos eBay Global para '{busqueda}'"},
-                    {"url": f"https://www.aliexpress.com/wholesale?SearchText={encoded_term}", "resumen": f"Suministro AliExpress para '{busqueda}'"}
+                    {"url": f"https://www.ebay.com/sch/i.html?_nkw={encoded_term}&_sop=12", "resumen": f"Resultados directos eBay Global para '{busqueda}'"}
                 ]
             else:
                 resultados = [
-                    {"url": "https://ioniashop.com", "resumen": f"IoniaShop Venezuela - Distribuidor de tóners e insumos para '{busqueda}'"},
-                    {"url": "https://officenet.net.ve", "resumen": f"OfficeNet Venezuela - Proveedor corporativo de suministros"},
-                    {"url": "https://compumall.com.ve", "resumen": f"CompuMall Venezuela - Tienda técnica de componentes"}
+                    {"url": "https://ioniashop.com", "resumen": f"IoniaShop Venezuela - Distribuidor de insumos para '{busqueda}'"},
+                    {"url": "https://officenet.net.ve", "resumen": f"OfficeNet Venezuela - Proveedor corporativo"}
                 ]
 
         return resultados
 
     def analizar_con_gemini_v2(self, producto: str, datos_extraidos: list, ambito: str = "Nacional", incluye_importacion: bool = False):
-        """
-        Genera el dictamen analítico con Gemini sin bloqueos por criterios vacíos.
-        """
+        """Dictamen analítico con control de saturación de API."""
         encoded_term = urllib.parse.quote(producto)
 
         if not datos_extraidos:
@@ -176,31 +168,18 @@ class GlobalWebScraper:
                 "REGLA CRÍTICA: ÁMBITO INTERNACIONAL EXCLUSIVO. Prohibido incluir proveedores de Venezuela. "
                 "Prioriza hallazgos de plataformas globales como Amazon, AliExpress, eBay o Alibaba."
             )
-            instruccion_ubicacion = (
-                "🌍 **Ubicación Geográfica / Plataforma:** Indica claramente la tienda o plataforma global de origen (Ej: *Amazon - Estados Unidos*, *eBay - Estados Unidos* o *AliExpress - China*)."
-            )
+            instruccion_ubicacion = "🌍 **Ubicación Geográfica / Plataforma:** Indica claramente la tienda o plataforma global de origen."
         else:
             restriccion_geografica = "Ámbito Nacional de Venezuela."
             instruccion_ubicacion = "📍 **Ubicación Geográfica:** Indica la ciudad o estado del proveedor dentro de Venezuela."
 
         estimacion = self.calc_zoom.estimar_peso_volumen(producto)
         peso_est = float(estimacion["peso_lb"])
-        vol_est = float(estimacion["volumen_ft3"])
-        es_pesado = bool(estimacion["es_pesado"])
-
-        flete_aereo_est = max(peso_est * self.calc_zoom.tarifa_aerea_lb, 10.00)
 
         if incluye_importacion:
-            instruccion_zoom = (
-                f"INSTRUCCIÓN DE LOGÍSTICA ZOOM CASILLEROS (CASILLA TILDADA):\n"
-                f"Para CADA opción, incluye de forma integrada un desglose estimado de importación (peso est: ~{peso_est} lbs):\n"
-                f"- Flete aéreo estimado: ${(flete_aereo_est + 5):,.2f} USD Puesto en Taller."
-            )
+            instruccion_zoom = f"INSTRUCCIÓN LOGÍSTICA ZOOM: Calcula flete aéreo estimado (~{peso_est} lbs) puesto en taller."
         else:
-            instruccion_zoom = (
-                "INSTRUCCIÓN LOGÍSTICA: La casilla de cálculo de importación NO está tildada. "
-                "Muestra únicamente los precios base de los proveedores sin fletes de casillero."
-            )
+            instruccion_zoom = "INSTRUCCIÓN LOGÍSTICA: Muestra únicamente precios base en USD."
 
         prompt = f"""
         Eres un asistente analista de compras experto y estratega comercial para "Inversiones Reinaldo Golindano".
@@ -212,21 +191,15 @@ class GlobalWebScraper:
         {datos_extraidos}
         
         INSTRUCCIONES DE FORMATO Y ENLACES DIRECTOS:
-        1. Analiza los resultados y selecciona las mejores opciones (mínimo 4 a 5 opciones variadas). ORDÉNALAS ESTRICTAMENTE DE MENOR A MAYOR PRECIO BASE.
-        2. Presenta la información limpia, técnica y estructurada.
-        3. Para CADA opción, detalla:
-           - Nombre de la plataforma / Proveedor
-           - Precio Base exacto estimado en USD
-           - {instruccion_ubicacion}
-           - Descripción analítica del valor para la competitividad del taller
-           - **Enlace directo interactivo OBLIGATORIO:** Utiliza la URL provista en los datos extraídos. Si la opción corresponde a plataformas como Amazon, eBay o AliExpress, utiliza su URL de búsqueda estructurada directa (`https://www.amazon.com/s?k={encoded_term}`). Si es un proveedor nacional, utiliza la URL limpia directa. Formato estricto: **Enlace:** [Texto descriptivo](URL)
-           - {instruccion_zoom}
+        1. Analiza los resultados y selecciona las mejores opciones (mínimo 4 opciones ordenadas de menor a mayor precio base).
+        2. Para CADA opción, detalla Nombre, Precio Base USD, Ubicación, Descripción y su Enlace directo en formato: **Enlace:** [Texto descriptivo](URL).
+        3. {instruccion_zoom}
         """
 
         modelos = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-1.5-flash", "gemini-pro"]
 
         for modelo in modelos:
-            for intento in range(3):
+            for intento in range(2):
                 try:
                     if self.usar_genai_nuevo:
                         response = self.client.models.generate_content(
@@ -243,15 +216,38 @@ class GlobalWebScraper:
                             return response.text.strip()
                 except Exception as e:
                     err_msg = str(e).lower()
-                    if "503" in err_msg or "429" in err_msg or "unavailable" in err_msg or "quota" in err_msg:
-                        time.sleep(2 * (intento + 1))
+                    if "503" in err_msg or "429" in err_msg or "unavailable" in err_msg:
+                        time.sleep(2)
                     else:
                         break
 
-        return "Dictamen de procura generado con éxito. Verifique las opciones y enlaces en el panel."
+        # Mensaje profesional de alta demanda con accesos directos interactivos reales
+        if ambito == "Internacional":
+            return f"""⚠️ **Aviso del Sistema - Alta Demanda en Servidores de IA**
+Los servidores gratuitos de Google presentan alta congestión en este momento. Para garantizar que no te quedes sin operar, aquí tienes los accesos directos de búsqueda internacional para **"{producto}"**:
+
+* **Opción 1: Amazon Global (Estados Unidos)**
+  * **Enlace:** [Buscar '{producto}' en Amazon Global](https://www.amazon.com/s?k={encoded_term})
+* **Opción 2: eBay Global (Mercado Internacional)**
+  * **Enlace:** [Buscar '{producto}' en eBay Global](https://www.ebay.com/sch/i.html?_nkw={encoded_term})
+* **Opción 3: AliExpress Global**
+  * **Enlace:** [Buscar '{producto}' en AliExpress](https://www.aliexpress.com/wholesale?SearchText={encoded_term})
+
+*(Por favor, presiona nuevamente el botón "Buscar en la Web" en unos segundos cuando se libere la cola de la API).*"""
+        else:
+            return f"""⚠️ **Aviso del Sistema - Alta Demanda en Servidores de IA**
+Los servidores gratuitos de Google presentan alta congestión temporal. Para que continúes tu gestión sin esperas, accede directamente a los principales proveedores nacionales para **"{producto}"**:
+
+* **Opción 1: IoniaShop Venezuela**
+  * **Enlace:** [Visitar IoniaShop](https://ioniashop.com)
+* **Opción 2: OfficeNet Venezuela**
+  * **Enlace:** [Visitar OfficeNet](https://officenet.net.ve)
+* **Opción 3: CompuMall Venezuela**
+  * **Enlace:** [Visitar CompuMall](https://compumall.com.ve)
+
+*(Vuelve a presionar el botón "Buscar en la Web" en unos instantes).*"""
 
     def analizar_con_gemini(self, producto: str, datos_extraidos: list):
-        """Método de compatibilidad estándar."""
         return self.analizar_con_gemini_v2(producto, datos_extraidos, ambito="Nacional", incluye_importacion=False)
 
 
