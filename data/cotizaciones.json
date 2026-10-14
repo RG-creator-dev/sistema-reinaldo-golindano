@@ -96,5 +96,63 @@
     "tax_usd": 8.8,
     "total_bs": 55866.5,
     "total_usd": 63.8
+  },
+  {
+    "bcv_rate": 876.7976,
+    "client_name": "Master Shock Valencia",
+    "client_phone": "N/A",
+    "client_rif": "N/A",
+    "date": "2026-10-13 19:28:58",
+    "items": [
+      {
+        "description": "Cartucho de tóner HP 105A",
+        "price_usd": 25.0,
+        "qty": 1,
+        "specs": "Cartucho de tóner negro compatible con impresoras HP Laser 107a, 107w, MFP 135a, 135w, 137fnw"
+      },
+      {
+        "description": "Pick up roller HP 107",
+        "price_usd": 25.0,
+        "qty": 1,
+        "specs": "Goma de arrastre de papel para serie HP Laser 107 y multifuncionales MFP 135/137"
+      },
+      {
+        "description": "Mantenimiento y reparación técnica",
+        "price_usd": 35.0,
+        "qty": 1,
+        "specs": "Servicio técnico especializado que incluye limpieza interna, lubricación de mecanismos y diagnóstico general"
+      }
+    ],
+    "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1005_20261013_153624.pdf",
+    "quote_id": "COT-1005",
+    "status": "Emitida",
+    "subtotal_usd": 85.0,
+    "tax_percent": 16.0,
+    "tax_usd": 13.6,
+    "total_bs": 86452.24,
+    "total_usd": 98.6
+  },
+  {
+    "bcv_rate": 876.7976,
+    "client_name": "Master Chock",
+    "client_phone": "N/A",
+    "client_rif": "N/A",
+    "date": "2026-10-13 19:33:41",
+    "items": [
+      {
+        "description": "Tóner HP 105A (W1105A)",
+        "price_usd": 25.0,
+        "qty": 1,
+        "specs": "Compatibilidad: HP Laser 107a, 107w, MFP 135a, MFP 135w, MFP 137fnw"
+      }
+    ],
+    "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1006_20261013_153624.pdf",
+    "quote_id": "COT-1006",
+    "status": "Emitida",
+    "subtotal_usd": 25.0,
+    "tax_percent": 16.0,
+    "tax_usd": 4.0,
+    "total_bs": 25427.13,
+    "total_usd": 29.0
   }
 ]
