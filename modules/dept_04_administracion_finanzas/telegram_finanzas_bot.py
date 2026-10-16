@@ -9,6 +9,7 @@ Descripción: Bot de Telegram para recepción de comprobantes y gestión contabl
 
 import os
 import sys
+import time
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
@@ -34,7 +35,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     )
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Maneja la recepción de imágenes de comprobantes de pago."""
+    """Maneja la recepción de imágenes de comprobantes de pago con sistema de reintentos automáticos (bucle repetidor)."""
     message = update.message
     if not message.photo:
         return
@@ -55,16 +56,41 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         
         caption = message.caption or ""
         
-        # Ejecutar tarea en el Agente Contable
-        response = contable_agent.execute("process_telegram_receipt", {
-            "image_path": image_path,
-            "caption": caption
-        })
+        # Bucle repetidor inteligente (Retry & Fallback) ante errores 503 o alta demanda de Gemini
+        response = None
+        ultimo_error = None
+        max_intentos = 3
 
-        if response.success:
+        for intento in range(1, max_intentos + 1):
+            try:
+                response = contable_agent.execute("process_telegram_receipt", {
+                    "image_path": image_path,
+                    "caption": caption
+                })
+                if response and response.success:
+                    break
+                else:
+                    # Si el agente devolvió fallo por saturación temporal
+                    ultimo_error = response.message if response else "Fallo desconocido"
+                    if "503" in ultimo_error or "UNAVAILABLE" in ultimo_error or "high demand" in ultimo_error:
+                        app_logger.warning(f"⚠️ Intento {intento}/{max_intentos} con caída 503 en Finanzas. Reintentando en {intento * 2}s...")
+                        time.sleep(intento * 2)
+                        continue
+                    else:
+                        break # Si es otro error de lógica de negocio, salimos del reintento
+            except Exception as err:
+                ultimo_error = str(err)
+                if "503" in ultimo_error or "UNAVAILABLE" in ultimo_error or "high demand" in ultimo_error:
+                    app_logger.warning(f"⚠️ Excepción 503 en intento {intento}/{max_intentos}. Reintentando en {intento * 2}s...")
+                    time.sleep(intento * 2)
+                else:
+                    break
+
+        if response and response.success:
             await message.reply_text(f"✅ ¡Transacción registrada con éxito!\n\n{response.message}")
         else:
-            await message.reply_text(f"❌ Error al procesar el comprobante:\n{response.message}")
+            error_msg = ultimo_error or (response.message if response else "Error desconocido")
+            await message.reply_text(f"❌ No se pudo procesar el comprobante tras varios reintentos automáticos:\n{error_msg}")
 
     except Exception as e:
         app_logger.error(f"Error inesperado al procesar imagen en bot: {e}", exc_info=True)

@@ -125,7 +125,7 @@ class TelegramBotController:
                 file_info = self.bot.get_file(message.voice.file_id)
                 audio_bytes = self.bot.download_file(file_info.file_path)
 
-                # Transcribir con Gemini SDK moderno
+                # Transcribir con Gemini SDK moderno aplicando bucle repetidor (Retry & Fallback)
                 from google import genai
                 from google.genai import types
 
@@ -136,14 +136,38 @@ class TelegramBotController:
                     "repuestos (almohadillas, tóner 85A, fusor, rodillos, cabezal), cantidades, precios y si menciona 'sin IVA'."
                 )
 
-                resp = client.models.generate_content(
-                    model="gemini-3.6-flash",
-                    contents=[
-                        types.Part.from_bytes(data=audio_bytes, mime_type="audio/ogg"),
-                        prompt_transcripcion
-                    ]
-                )
-                texto_transcrito = resp.text.strip() if resp.text else ""
+                modelos_disponibles = ["gemini-3.6-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+                resp = None
+                ultimo_error = None
+
+                # Bucle repetidor inteligente ante picos de demanda o error 503
+                for modelo in modelos_disponibles:
+                    for intento in range(1, 4):  # Hasta 3 intentos por modelo
+                        try:
+                            resp = client.models.generate_content(
+                                model=modelo,
+                                contents=[
+                                    types.Part.from_bytes(data=audio_bytes, mime_type="audio/ogg"),
+                                    prompt_transcripcion
+                                ]
+                            )
+                            if resp and resp.text:
+                                break  # Salto de éxito si respondió bien
+                        except Exception as err:
+                            ultimo_error = str(err)
+                            if "503" in ultimo_error or "UNAVAILABLE" in ultimo_error or "high demand" in ultimo_error:
+                                app_logger.warning(f"⚠️ Intento {intento}/3 fallido en {modelo} por saturación (503). Reintentando en {intento * 2}s...")
+                                time.sleep(intento * 2)
+                            else:
+                                # Si es otro error diferente, rompemos e intentamos otro modelo
+                                break
+                    if resp and resp.text:
+                        break
+
+                if not resp or not resp.text:
+                    raise Exception(f"La API de Gemini no respondió tras varios reintentos. Detalle: {ultimo_error}")
+
+                texto_transcrito = resp.text.strip()
                 self._log_activity(user, "Voz Transcrita", texto_transcrito[:40])
 
                 self.bot.send_message(
@@ -157,7 +181,7 @@ class TelegramBotController:
                 app_logger.error(f"Error procesando nota de voz en Telegram: {e}", exc_info=True)
                 self.bot.send_message(
                     chat_id,
-                    f"⚠️ Ocurrió un inconveniente al procesar el audio: {e}\nPor favor intenta dictarlo nuevamente o envíalo en texto."
+                    f"⚠️ Ocurrió un inconveniente al procesar el audio tras varios reintentos automáticos: {e}\nPor favor intenta dictarlo nuevamente."
                 )
 
     def _process_and_reply(self, chat_id: int, user_name: str, text_content: str):
