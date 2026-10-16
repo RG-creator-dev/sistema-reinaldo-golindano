@@ -6,7 +6,8 @@ Módulo: web_scraper.py
 Descripción: Rastreador Web Global Multirrubro y Asistente de Procura con IA.
              Búsqueda abierta y libre sin límites de catálogo ni rubro.
              Exclusión estricta de Mercado Libre.
-             Mecanismo Cero Pantallas Vacías con enlaces dinámicos y fallback autónomo.
+             Mecanismo Cero Pantallas Vacías con enlaces directos de búsqueda
+             exacta (sin dominios caídos ni redirecciones al Home).
 =============================================================================
 """
 
@@ -103,8 +104,11 @@ class GlobalWebScraper:
 
     def _es_url_permitida(self, url: str, ambito: str) -> bool:
         """
-        Regla de Filtro: Excluye estrictamente Mercado Libre y respeta el ámbito geográfico.
-        Mantiene abiertas todas las demás tiendas, portales y proveedores.
+        Regla de Filtro y Calidad:
+        1. Excluye estrictamente Mercado Libre.
+        2. Elimina URLs estáticas que apunten a la raíz/Home sin parámetros de búsqueda.
+        3. Excluye dominios caídos o no comprobados.
+        4. Respeta el ámbito geográfico.
         """
         if not url:
             return False
@@ -112,18 +116,26 @@ class GlobalWebScraper:
             parsed = urllib.parse.urlparse(url)
             netloc = parsed.netloc.lower()
             path = parsed.path.lower()
+            query = parsed.query
         except Exception:
-            netloc = ""
-            path = ""
+            return False
 
-        # REGLA ESTRICTA: Excluir Mercado Libre en su dominio o ruta de publicación
+        # REGLA ESTRICTA 1: Excluir Mercado Libre en su dominio o ruta
         if "mercadolibre" in netloc or "mercadolibre" in path:
+            return False
+
+        # REGLA 2: Excluir enlaces a la raíz/Home sin ruta ni parámetros de búsqueda
+        if (not path or path == "/") and not query:
+            return False
+
+        # REGLA 3: Excluir dominios no existentes o con fallos conocidos de DNS
+        if any(bad in netloc for bad in ["compumall.com.ve", "multimaxstore.com", "tiendasdaka.com"]):
             return False
 
         u = url.lower()
         if any(ml in u for ml in ["mercadolibre.com", "mercadolibre.com.ve", "articulo.mercadolibre", "listado.mercadolibre"]):
             # No excluir motores de búsqueda abiertos si solo llevan -mercadolibre como filtro en su query
-            if not any(se in netloc for se in ["google.", "bing.", "yahoo."]):
+            if not any(se in netloc for se in ["google.", "bing.", "yahoo.", "duckduckgo."]):
                 return False
 
         # Si el ámbito es Internacional: omitir dominios venezolanos
@@ -131,15 +143,16 @@ class GlobalWebScraper:
             return False
 
         # Si el ámbito es Nacional: omitir plataformas que solo despachan fuera del país sin envío local
-        if ambito == "Nacional" and any(intl in netloc for intl in ["aliexpress.com", "alibaba.com"]):
+        if ambito == "Nacional" and any(intl in netloc for intl in ["aliexpress.com", "alibaba.com", "ebay.com"]):
             return False
 
         return True
 
     def _generar_enlaces_dinamicos(self, busqueda: str, ambito: str) -> List[Dict[str, str]]:
         """
-        Genera dinámicamente enlaces de búsqueda libre y directa para CUALQUIER rubro o producto.
-        Garantiza que el sistema nunca sufra de pantallas vacías.
+        Genera dinámicamente enlaces verificados de búsqueda directa y filtrada para CUALQUIER producto.
+        Tanto en Nacional como en Internacional, todas las URLs van directamente a la página de resultados
+        con el término exacto buscado, sin caer en Homes ni dominios inventados.
         """
         termino = busqueda.strip()
         encoded = urllib.parse.quote(termino)
@@ -177,41 +190,42 @@ class GlobalWebScraper:
             ])
 
         if ambito in ("Nacional", "Ambos"):
+            # Enlaces directos a búsquedas comerciales verificadas en Venezuela (Sin Mercado Libre)
             enlaces.extend([
                 {
-                    "plataforma": "Google Venezuela (Web Abierta sin Mercado Libre)",
-                    "url": f"https://www.google.com/search?q={encoded_plus}+precio+Venezuela+-mercadolibre",
-                    "resumen": f"Rastreo abierto en comercios, importadores y distribuidores de Venezuela para '{termino}'"
+                    "plataforma": "Google Comercios Venezuela (.VE)",
+                    "url": f"https://www.google.com/search?q={encoded_plus}+site:.ve+-site:mercadolibre.com.ve",
+                    "resumen": f"Búsqueda directa de '{termino}' en tiendas y distribuidores de Venezuela (.ve)"
                 },
                 {
-                    "plataforma": "Bing Venezuela (Tiendas y Mayoristas)",
-                    "url": f"https://www.bing.com/search?q={encoded_plus}+tienda+distribuidor+Venezuela+-mercadolibre",
-                    "resumen": f"Búsqueda multisectorial en empresas y tiendas venezolanas para '{termino}'"
+                    "plataforma": "Google Precios y Proveedores Venezuela",
+                    "url": f"https://www.google.com/search?q={encoded_plus}+precio+Venezuela+-site:mercadolibre.com.ve+-site:mercadolibre.com",
+                    "resumen": f"Catálogo de precios y ofertas activas en Venezuela para '{termino}'"
                 },
                 {
-                    "plataforma": "Yahoo en Español (Directorio Nacional)",
-                    "url": f"https://espanol.search.yahoo.com/search?p={encoded_plus}+precio+Venezuela",
-                    "resumen": f"Portales de venta y cotizaciones en Venezuela para '{termino}'"
+                    "plataforma": "Bing Comercios y Tiendas Venezuela (.VE)",
+                    "url": f"https://www.bing.com/search?q={encoded_plus}+site:.ve+-mercadolibre",
+                    "resumen": f"Rastreo en comercios e importadores venezolanos registrados para '{termino}'"
                 },
                 {
-                    "plataforma": "EPA Venezuela (Ferretería y Suministros Industriales)",
+                    "plataforma": "DuckDuckGo Comercios Venezuela (.VE)",
+                    "url": f"https://duckduckgo.com/?q={encoded_plus}+site:.ve+-site:mercadolibre.com.ve",
+                    "resumen": f"Directorio comercial abierto de proveedores en Venezuela para '{termino}'"
+                },
+                {
+                    "plataforma": "Google Mayoristas e Importadores Venezuela",
+                    "url": f"https://www.google.com/search?q={encoded_plus}+distribuidor+mayorista+Venezuela+-mercadolibre",
+                    "resumen": f"Canales mayoristas y empresas de importación directa en Venezuela para '{termino}'"
+                },
+                {
+                    "plataforma": "Bing Tiendas Online Venezuela",
+                    "url": f"https://www.bing.com/search?q={encoded_plus}+tienda+online+Venezuela+-mercadolibre",
+                    "resumen": f"Tiendas y cotizaciones online en territorio venezolano para '{termino}'"
+                },
+                {
+                    "plataforma": "EPA Venezuela (Catálogo Nacional)",
                     "url": f"https://ve.epaenlinea.com/catalogsearch/result/?q={encoded}",
-                    "resumen": f"Catálogo comercial de ferretería, repuestos y suministros para '{termino}'"
-                },
-                {
-                    "plataforma": "Tiendas Daka Venezuela",
-                    "url": f"https://www.tiendasdaka.com/catalogsearch/result/?q={encoded}",
-                    "resumen": f"Tiendas Daka a nivel nacional con disponibilidad para '{termino}'"
-                },
-                {
-                    "plataforma": "CompuMall Venezuela",
-                    "url": f"https://compumall.com.ve/?s={encoded}&post_type=product",
-                    "resumen": f"CompuMall Venezuela - Componentes, equipos y suministros técnicos para '{termino}'"
-                },
-                {
-                    "plataforma": "IoniaShop Venezuela",
-                    "url": f"https://ioniashop.com/?s={encoded}&post_type=product",
-                    "resumen": f"IoniaShop Venezuela - Consumibles y partes para '{termino}'"
+                    "resumen": f"Búsqueda directa de suministros, ferretería y equipos en EPA Venezuela para '{termino}'"
                 }
             ])
 
@@ -220,7 +234,7 @@ class GlobalWebScraper:
     def buscar_sitios_web(self, busqueda: str, max_resultados: int = 15, ambito: str = "Nacional") -> List[Dict[str, str]]:
         """
         Rastrea páginas web con búsqueda abierta y multirrubro en la web.
-        Excluye Mercado Libre y garantiza resultados mediante fallbacks dinámicos.
+        Excluye Mercado Libre, filtra URLs a páginas de inicio vacías y garantiza resultados.
         """
         termino = busqueda.strip()
         if not termino:
@@ -258,7 +272,7 @@ class GlobalWebScraper:
                         if not self._es_url_permitida(url_real, ambito):
                             continue
 
-                        snippet_txt = snippets[i].get_text(strip=True) if i < len(snippets) else "Catálogo disponible."
+                        snippet_txt = snippets[i].get_text(strip=True) if i < len(snippets) else f"Catálogo para {termino}"
                         resultados.append({
                             "url": url_real,
                             "resumen": snippet_txt
@@ -278,13 +292,86 @@ class GlobalWebScraper:
 
         return resultados
 
+    def _sanitizar_enlaces_dictamen(self, texto: str, busqueda: str, ambito: str) -> str:
+        """
+        Regla de Integridad de Enlaces:
+        1. Detecta y reemplaza cualquier dominio inventado, caído o enlace a la raíz/Home
+           por las URLs verificadas de búsqueda directa del producto.
+        2. Garantiza que CADA opción listada en el dictamen contenga su enlace interactivo verificado.
+        """
+        enlaces_validos = self._generar_enlaces_dinamicos(busqueda, ambito)
+        if not enlaces_validos:
+            return texto
+
+        urls_validas = [e["url"] for e in enlaces_validos]
+        link_md_pattern = re.compile(r'\[([^\]]+)\]\((https?://[^\s\)]+)\)')
+        idx_url = [0]
+
+        # 1. Sustituir enlaces simulados, inventados, caídos o que apunten al Home
+        def replacer(match):
+            label = match.group(1)
+            url = match.group(2)
+
+            try:
+                parsed = urllib.parse.urlparse(url)
+                netloc = parsed.netloc.lower()
+                path = parsed.path.lower()
+                query = parsed.query
+            except Exception:
+                netloc, path, query = "", "", ""
+
+            # Si ya coincide exactamente con una de nuestras URLs verificadas, respetarla
+            if any(url.startswith(v.split("?")[0]) and (query in url or not query) for v in urls_validas):
+                return match.group(0)
+
+            # Verificar si la URL generada por la IA es válida o si es una invención / Home
+            es_busqueda_real = any(p in query.lower() for p in ["q=", "search", "k=", "nkw", "query="])
+            es_dominio_reconocido = any(cd in netloc for cd in ["google.", "bing.", "yahoo.", "duckduckgo.", "amazon.", "ebay.", "aliexpress.", "alibaba.", "epaenlinea."])
+            es_home_vacio = (not path or path == "/") and not query
+
+            # Si es un dominio inventado, caído, sin búsqueda o Home, sustituirlo
+            if not es_dominio_reconocido or not es_busqueda_real or es_home_vacio:
+                ed = enlaces_validos[idx_url[0] % len(enlaces_validos)]
+                idx_url[0] += 1
+                return f"[{label}]({ed['url']})"
+
+            return match.group(0)
+
+        texto_reemplazado = link_md_pattern.sub(replacer, texto)
+
+        # 2. Asegurar que CADA opción listada tenga obligatoriamente su enlace interactivo directo
+        opcion_pattern = re.compile(r'(\*\*(?:Opción|Opcion)\s+\d+.*)', re.IGNORECASE)
+        bloques = opcion_pattern.split(texto_reemplazado)
+
+        if len(bloques) > 1:
+            resultado = [bloques[0]]
+            for i in range(1, len(bloques), 2):
+                encabezado = bloques[i]
+                contenido = bloques[i + 1] if i + 1 < len(bloques) else ""
+
+                # Si el bloque de esta opción carece de enlace directo
+                if not re.search(r'\[([^\]]+)\]\((https?://[^\s\)]+)\)', contenido):
+                    ed = enlaces_validos[idx_url[0] % len(enlaces_validos)]
+                    idx_url[0] += 1
+                    nombre_fuente = ed.get("plataforma", "Plataforma Verificada")
+                    link_line = f"\n* **Enlace:** [Ver Resultados y Precios de '{busqueda}' ({nombre_fuente})]({ed['url']})"
+                    
+                    if "\n---" in contenido:
+                        contenido = contenido.replace("\n---", f"{link_line}\n---", 1)
+                    else:
+                        contenido = contenido.rstrip() + f"{link_line}\n"
+
+                resultado.append(encabezado + contenido)
+            return "".join(resultado)
+
+        return texto_reemplazado
+
     def analizar_con_gemini_v2(self, producto: str, datos_extraidos: list, ambito: str = "Nacional", incluye_importacion: bool = False) -> str:
         """
         Genera el dictamen comercial y de procura con IA ordenando de menor a mayor precio base en USD.
-        Totalmente multirrubro y abierto, con exclusión estricta de Mercado Libre.
+        Totalmente multirrubro y abierto, con exclusión estricta de Mercado Libre y enlaces 100% verificados.
         """
         termino = producto.strip()
-        encoded_term = urllib.parse.quote(termino)
         enlaces_dinamicos = self._generar_enlaces_dinamicos(termino, ambito)
 
         # Garantizar que datos_extraidos contenga información válida
@@ -349,18 +436,25 @@ class GlobalWebScraper:
         - QUEDA TERMINANTEMENTE PROHIBIDO incluir opciones, precios o enlaces de Mercado Libre.
         - Mantén abierta y libre la búsqueda en todas las demás tiendas, portales web, proveedores locales y distribuidores nacionales o internacionales.
 
-        FUENTES Y ENLACES DISPONIBLES DE LA WEB ABIERTA:
+        FUENTES Y ENLACES DE BÚSQUEDA DIRECTA DISPONIBLES (UTILIZA ESTOS ENLACES):
         {datos_extraidos}
+
+        REGLAS ESTRICTAS DE ASIGNACIÓN DE ENLACES:
+        1. Para el campo **Enlace:**, queda TERMINANTEMENTE PROHIBIDO inventar nombres de dominio (ej. NO inventar https://tiendafalsa.com.ve).
+        2. Queda TERMINANTEMENTE PROHIBIDO colocar enlaces que lleven al Home o página principal sin parámetros de búsqueda.
+        3. DEBES utilizar OBLIGATORIAMENTE uno de los enlaces directos de búsqueda provistos arriba en "FUENTES Y ENLACES", asignando un enlace directo diferente a cada opción.
+        4. Formato estricto para cada opción:
+           **Enlace:** [Ver Resultados y Precios de '{termino}'](URL_DIRECTA_DE_LAS_FUENTES)
 
         INSTRUCCIONES DE FORMATO Y ESTRUCTURA:
         1. Analiza las fuentes y presenta entre 3 y 5 opciones comerciales concretas, ORDENADAS ESTRICTAMENTE DE MENOR A MAYOR PRECIO BASE EN USD (Opción 1 = la más económica).
         2. Para CADA opción incluye:
            - **Opción N: [Nombre del Producto / Suministro]**
-           - **Proveedor / Plataforma:** Nombre de la tienda, distribuidor o plataforma (ej. AliExpress, eBay, Amazon, EPA, CompuMall, Mayorista de Computación, etc.).
+           - **Proveedor / Plataforma:** Nombre de la tienda, distribuidor o plataforma verificada.
            - **Precio Base Estimado:** En USD (indicar si es precio unitario o lote/pack si aplica).
            - {ubicacion_fmt}
-           - **Análisis Comercial:** Breve evaluación de calidad, conveniencia y margen para el negocio.
-           - **Enlace:** [Abrir Catálogo / Publicación](URL) <- Formato Markdown estricto obligatorio utilizando las URLs provistas.
+           - **Análisis Comercial:** Breve evaluación de conveniencia, disponibilidad y margen.
+           - **Enlace:** [Ver Resultados y Precios de '{termino}'](URL_DIRECTA_DE_LAS_FUENTES)
            - {instruccion_zoom}
         3. Concluye con un **Dictamen Estratégico de Compra** indicando la opción recomendada según relación costo-beneficio y tiempo de entrega.
         """
@@ -386,20 +480,22 @@ class GlobalWebScraper:
                         )
                         if response and response.text and len(response.text.strip()) > 50:
                             texto_limpio = self._filtrar_salida_mercadolibre(response.text.strip())
-                            return texto_limpio
+                            texto_sanitizado = self._sanitizar_enlaces_dictamen(texto_limpio, termino, ambito)
+                            return texto_sanitizado
                     elif not self.usar_genai_nuevo and hasattr(self, "model_old"):
                         import google.generativeai as genai_old
                         m = genai_old.GenerativeModel(modelo)
                         response = m.generate_content(prompt)
                         if response and response.text and len(response.text.strip()) > 50:
                             texto_limpio = self._filtrar_salida_mercadolibre(response.text.strip())
-                            return texto_limpio
+                            texto_sanitizado = self._sanitizar_enlaces_dictamen(texto_limpio, termino, ambito)
+                            return texto_sanitizado
                 except Exception as e:
                     err_msg = str(e).lower()
                     if "503" in err_msg or "429" in err_msg or "unavailable" in err_msg or "quota" in err_msg:
                         time.sleep(1.0 * (intento + 1))
                     else:
-                        break  # Pasar directamente al siguiente modelo si es 404 o error no recuperable
+                        break
 
         # FALLBACK AUTÓNOMO (Cero Pantallas Vacías): Si la API externa no respondió, generar dictamen completo
         app_logger.warning("Generando dictamen autónomo de contingencia para procura...")
@@ -428,7 +524,8 @@ class GlobalWebScraper:
     ) -> str:
         """
         Genera un dictamen comercial estructurado y completo en caso de contingencia de API,
-        garantizando que nunca se presente una pantalla vacía ni se pierdan los enlaces.
+        garantizando que nunca se presente una pantalla vacía y que todos los enlaces abran
+        directamente la búsqueda exacta del producto.
         """
         flete_aer = max(peso_est * self.calc_zoom.tarifa_aerea_lb, 10.00)
         flete_mar = max(vol_est * self.calc_zoom.tarifa_maritima_ft3, 20.00)
@@ -447,7 +544,7 @@ class GlobalWebScraper:
                     f"     • Flete Aéreo Zoom: ${flete_aer:,.2f} ($5.50/lb, mín $10) + $5.00 manejo = **${(flete_aer + 5):,.2f} USD**"
                 )
 
-        # Determinar precios de referencia aproximados según categoría
+        # Precios de referencia aproximados según categoría
         if es_pesado:
             p_base_1, p_base_2, p_base_3, p_base_4 = 110.00, 145.00, 180.00, 220.00
         elif "repuesto" in categoria_prod.lower() or "herramienta" in categoria_prod.lower():
@@ -466,24 +563,24 @@ class GlobalWebScraper:
 
         if ambito == "Internacional":
             opciones = [
-                ("AliExpress Global (Directo de Fabricante)", p_base_1, "China / Envíos Globales", enlaces_dinamicos[0]["url"] if enlaces_dinamicos else f"https://www.aliexpress.com/wholesale?SearchText={urllib.parse.quote(producto)}", "Compra directa de fábrica, óptima para lotes o reposición de stock al menor costo."),
-                ("eBay Global (Vendedores Verificados)", p_base_2, "Estados Unidos / Internacional", enlaces_dinamicos[1]["url"] if len(enlaces_dinamicos) > 1 else f"https://www.ebay.com/sch/i.html?_nkw={urllib.parse.quote(producto)}", "Excelente disponibilidad de unidades sueltas o componentes con entrega rápida a casillero en Miami."),
-                ("Amazon Global (Distribución Oficial)", p_base_3, "Estados Unidos", enlaces_dinamicos[2]["url"] if len(enlaces_dinamicos) > 2 else f"https://www.amazon.com/s?k={urllib.parse.quote(producto)}", "Máxima garantía de calidad y rapidez de recepción en el casillero Zoom de Florida."),
-                ("Google Shopping Internacional", p_base_4, "Múltiples Plataformas Internacionales", enlaces_dinamicos[4]["url"] if len(enlaces_dinamicos) > 4 else f"https://www.google.com/search?q={urllib.parse.quote(producto)}+price+usd", "Comparativa abierta en tiendas especializadas del mercado exterior.")
+                ("AliExpress Global (Directo de Fabricante)", p_base_1, "China / Envíos Globales", enlaces_dinamicos[0]["url"] if enlaces_dinamicos else "#", "Compra directa de fábrica, óptima para lotes o reposición de stock al menor costo."),
+                ("eBay Global (Vendedores Verificados)", p_base_2, "Estados Unidos / Internacional", enlaces_dinamicos[1]["url"] if len(enlaces_dinamicos) > 1 else "#", "Excelente disponibilidad de unidades sueltas o componentes con entrega rápida a casillero en Miami."),
+                ("Amazon Global (Distribución Oficial)", p_base_3, "Estados Unidos", enlaces_dinamicos[2]["url"] if len(enlaces_dinamicos) > 2 else "#", "Máxima garantía de calidad y rapidez de recepción en el casillero Zoom de Florida."),
+                ("Alibaba Trade (Lotes al Mayor)", p_base_4, "China / Mayorista", enlaces_dinamicos[3]["url"] if len(enlaces_dinamicos) > 3 else "#", "Adquisición directa por volumen para distribución comercial.")
             ]
         elif ambito == "Ambos":
             opciones = [
                 ("AliExpress Global (Importación Directa)", p_base_1, "Internacional / China", enlaces_dinamicos[0]["url"] if enlaces_dinamicos else "#", "Menor precio de entrada para compras planificadas."),
-                ("Google Venezuela (Comercios y Distribuidores Locales)", p_base_2, "Venezuela (Caracas / Valencia)", next((e["url"] for e in enlaces_dinamicos if "google.com/search?q=" in e["url"] and "Venezuela" in e["url"]), "#"), "Disponibilidad inmediata en territorio nacional sin esperas de aduana."),
+                ("Comercios y Proveedores en Venezuela (Google .VE)", p_base_2, "Venezuela (Caracas / Valencia)", next((e["url"] for e in enlaces_dinamicos if "google.com/search?q=" in e["url"] and "site:.ve" in e["url"]), "#"), "Disponibilidad inmediata en territorio nacional sin esperas de aduana."),
                 ("Amazon Global (Despacho a Casillero)", p_base_3, "Estados Unidos", next((e["url"] for e in enlaces_dinamicos if "amazon.com" in e["url"]), "#"), "Garantía de marca y entrega directa en Miami."),
-                ("Portales Comerciales Nacionales", p_base_4, "Venezuela (Nacional)", next((e["url"] for e in enlaces_dinamicos if "bing.com" in e["url"]), "#"), "Proveedores y tiendas del mercado venezolano con facturación local.")
+                ("Red Comercial Nacional (Bing .VE)", p_base_4, "Venezuela (Nacional)", next((e["url"] for e in enlaces_dinamicos if "bing.com" in e["url"] and "site:.ve" in e["url"]), "#"), "Proveedores y tiendas del mercado venezolano con facturación local.")
             ]
         else:  # Nacional
             opciones = [
-                ("Distribuidores Mayoristas en Web Abierta (Google VE)", p_base_1, "Venezuela (Caracas / Valencia)", enlaces_dinamicos[0]["url"] if enlaces_dinamicos else "#", "Ofertas directas de distribuidores e importadores con precios al mayor."),
-                ("Tiendas Comerciales y Técnicas (Bing VE)", p_base_2, "Venezuela (Carabobo / Aragua)", enlaces_dinamicos[1]["url"] if len(enlaces_dinamicos) > 1 else "#", "Puntos de venta de insumos y equipos con retiro local o delivery."),
-                ("Cadena de Suministros EPA Venezuela", p_base_3, "Venezuela (Tiendas a Nivel Nacional)", next((e["url"] for e in enlaces_dinamicos if "epaenlinea" in e["url"]), "#"), "Suministro continuo con facturación formal y garantía."),
-                ("Directorio Comercial Especializado (Yahoo VE)", p_base_4, "Venezuela (Nacional)", enlaces_dinamicos[2]["url"] if len(enlaces_dinamicos) > 2 else "#", "Opciones adicionales de proveedores independientes y tiendas técnicas.")
+                ("Comercios y Proveedores Registrados en Venezuela (Google .VE)", p_base_1, "Venezuela (Nacional)", enlaces_dinamicos[0]["url"] if enlaces_dinamicos else "#", "Listado directo de proveedores con inventario en territorio nacional."),
+                ("Distribuidores Mayoristas y Cotizaciones en USD (Google VE)", p_base_2, "Venezuela (Caracas / Valencia)", enlaces_dinamicos[1]["url"] if len(enlaces_dinamicos) > 1 else "#", "Ofertas comerciales y precios de mayoristas verificados en Venezuela."),
+                ("Tiendas Comerciales y Red de Suministros (Bing .VE)", p_base_3, "Venezuela (Carabobo / Aragua / Centro)", enlaces_dinamicos[2]["url"] if len(enlaces_dinamicos) > 2 else "#", "Puntos de venta de insumos y equipos con entrega o despacho local."),
+                ("Directorio Comercial y Proveedores Nacionales (DuckDuckGo .VE)", p_base_4, "Venezuela (Nacional)", enlaces_dinamicos[3]["url"] if len(enlaces_dinamicos) > 3 else "#", "Opciones adicionales de empresas y tiendas del mercado venezolano.")
             ]
 
         for i, (prov, precio, ubi, url, desc) in enumerate(opciones, start=1):
@@ -492,7 +589,7 @@ class GlobalWebScraper:
             doc.append(f"- **Precio Base Estimado:** ${precio:,.2f} USD")
             doc.append(f"- {ubi}")
             doc.append(f"- **Análisis Comercial:** {desc}")
-            doc.append(f"- **Enlace:** [Abrir Catálogo / Publicación]({url}){zoom_txt}")
+            doc.append(f"- **Enlace:** [Ver Resultados y Precios de '{producto}']({url}){zoom_txt}")
             doc.append("\n---")
 
         doc.append("💡 **Dictamen del Analista de Compras:**")
@@ -502,7 +599,7 @@ class GlobalWebScraper:
             else:
                 doc.append("Para consumibles, repuestos e insumos ligeros, el **Flete Aéreo de Zoom Casilleros** ($5.50/lb) ofrece el equilibrio ideal entre tiempo de entrega (5 a 8 días) y costo unitario competitivo.")
         else:
-            doc.append("A nivel nacional, se recomienda consultar las opciones 1 y 2 en proveedores autorizados para verificar inventario de entrega inmediata, manteniendo una estructura de costos sin sobreprecios.")
+            doc.append("A nivel nacional, se recomienda consultar los enlaces directos de búsqueda en proveedores registrados (.ve) para verificar inventario disponible para entrega inmediata, manteniendo una estructura de costos sin sobreprecios.")
 
         return "\n".join(doc)
 
