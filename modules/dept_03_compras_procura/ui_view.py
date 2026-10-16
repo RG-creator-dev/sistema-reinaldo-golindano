@@ -143,13 +143,36 @@ class ComprasProcuraView(ctk.CTkFrame):
         self.txt_web_result.config(state="disabled")
 
         def _task():
-            ambito = self.combo_ambito.get()
-            importar = self.var_zoom.get()
-            hallazgos = self.motor_web.buscar_sitios_web(query, ambito=ambito)
-            dictamen = self.motor_web.analizar_con_gemini_v2(query, hallazgos, ambito=ambito, incluye_importacion=importar)
-            self.after(0, self._render_web_dictamen, dictamen)
+            try:
+                ambito = self.combo_ambito.get()
+                importar = self.var_zoom.get()
+                hallazgos = self.motor_web.buscar_sitios_web(query, ambito=ambito)
+                dictamen = self.motor_web.analizar_con_gemini_v2(query, hallazgos, ambito=ambito, incluye_importacion=importar)
+                self.after(0, self._render_web_dictamen, dictamen)
+            except Exception as e:
+                app_logger.error(f"Error en búsqueda web de procura: {e}", exc_info=True)
+                # Fallback directo en caso de error imprevisto
+                try:
+                    fallback_dictamen = self.motor_web._generar_dictamen_autonomo(
+                        query,
+                        self.combo_ambito.get(),
+                        self.var_zoom.get(),
+                        2.5, 0.1, False, "General",
+                        self.motor_web._generar_enlaces_dinamicos(query, self.combo_ambito.get())
+                    )
+                    self.after(0, self._render_web_dictamen, fallback_dictamen)
+                except Exception:
+                    self.after(0, self._render_web_error, str(e))
 
         threading.Thread(target=_task, daemon=True).start()
+
+    def _render_web_error(self, err_msg: str):
+        self.btn_web_buscar.configure(state="normal")
+        self.lbl_web_status.configure(text=f"Aviso en consulta: {err_msg}", text_color=Theme.WARNING)
+        self.txt_web_result.config(state="normal")
+        self.txt_web_result.delete("1.0", "end")
+        self.txt_web_result.insert("1.0", f"No se pudo completar el análisis automático: {err_msg}\nPor favor intente nuevamente.")
+        self.txt_web_result.config(state="disabled")
 
     def _render_web_dictamen(self, dictamen: str):
         self.btn_web_buscar.configure(state="normal")
@@ -158,22 +181,37 @@ class ComprasProcuraView(ctk.CTkFrame):
         self.txt_web_result.config(state="normal")
         self.txt_web_result.delete("1.0", "end")
 
-        # Parser de URLs para crear hipervínculos interactivos
-        url_pattern = re.compile(r'(https?://[^\s\)\],]+)')
+        if not dictamen or not dictamen.strip():
+            self.txt_web_result.insert("1.0", "No se generó dictamen de compras. Intente con otro término de búsqueda.")
+            self.txt_web_result.config(state="disabled")
+            return
+
+        # Parser avanzado para enlaces Markdown [Texto](URL) y URLs sueltas
+        link_pattern = re.compile(r'\[([^\]]+)\]\((https?://[^\s\)]+)\)|(https?://[^\s\)\],]+)')
         pos = 0
         tag_count = 0
 
-        for match in url_pattern.finditer(dictamen):
+        for match in link_pattern.finditer(dictamen):
             start, end = match.span()
-            url = match.group(0)
-
             if start > pos:
                 self.txt_web_result.insert("end", dictamen[pos:start])
 
-            tag_name = f"link_{tag_count}"
-            tag_count += 1
-            self.txt_web_result.insert("end", url, ("link", tag_name))
-            self.txt_web_result.tag_bind(tag_name, "<Button-1>", lambda e, u=url: webbrowser.open(u))
+            if match.group(1) and match.group(2):
+                # Formato Markdown [Texto](URL)
+                link_text = match.group(1).strip()
+                link_url = match.group(2).strip()
+                tag_name = f"link_{tag_count}"
+                tag_count += 1
+                self.txt_web_result.insert("end", f"🔗 {link_text}", ("link", tag_name))
+                self.txt_web_result.tag_bind(tag_name, "<Button-1>", lambda e, u=link_url: webbrowser.open(u))
+            elif match.group(3):
+                # URL directa suelta
+                link_url = match.group(3).strip()
+                tag_name = f"link_{tag_count}"
+                tag_count += 1
+                self.txt_web_result.insert("end", link_url, ("link", tag_name))
+                self.txt_web_result.tag_bind(tag_name, "<Button-1>", lambda e, u=link_url: webbrowser.open(u))
+
             pos = end
 
         if pos < len(dictamen):

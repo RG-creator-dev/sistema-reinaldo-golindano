@@ -139,15 +139,19 @@ class SupplyAuditAgent(BaseAgent):
         return AgentResponse(success=False, message=f"SKU {sku} no encontrado.")
 
     def search_supplier_prices(self, payload: Dict[str, Any]) -> AgentResponse:
-        producto = payload.get("query", "")
+        producto = payload.get("query") or payload.get("producto") or payload.get("q") or ""
+        producto = producto.strip()
+        if not producto:
+            return AgentResponse(success=False, message="Por favor ingrese un producto o insumo para rastrear.")
+
         ambito = payload.get("ambito", "Nacional")
-        importar = payload.get("incluye_importacion", False)
+        importar = bool(payload.get("incluye_importacion") or payload.get("importar", False))
 
         hallazgos = self.web_scraper.buscar_sitios_web(producto, ambito=ambito)
         dictamen = self.web_scraper.analizar_con_gemini_v2(producto, hallazgos, ambito=ambito, incluye_importacion=importar)
 
         return AgentResponse(
             success=True,
-            data={"dictamen": dictamen, "hallazgos": hallazgos},
+            data={"dictamen": dictamen, "hallazgos": hallazgos, "producto": producto, "ambito": ambito},
             message="Rastreo y análisis de compras culminado."
         )

@@ -14,12 +14,16 @@ from flask import Flask, request, jsonify, make_response
 from config import SystemConfig
 from core.logger import app_logger
 from modules.dept_04_administracion_finanzas.accounting_agent import AccountingAgent
+from modules.dept_03_compras_procura.web_scraper import GlobalWebScraper
+from modules.dept_03_compras_procura.supply_audit_agent import SupplyAuditAgent
 
 # Inicializar aplicación Flask
 app = Flask(__name__)
 
-# Instancia singleton del Agente Contable para el servidor
+# Instancias singleton para el servidor web en la nube
 accounting_agent = AccountingAgent()
+web_scraper = GlobalWebScraper()
+supply_agent = SupplyAuditAgent(web_scraper=web_scraper)
 
 
 def _read_json_safe(path: str):
@@ -204,6 +208,255 @@ def api_sync():
     }
 
     return jsonify(response_payload)
+
+
+def _convert_dictamen_markdown_to_html(md_text: str) -> str:
+    """Convierte el dictamen markdown a HTML seguro con hipervínculos interactivos."""
+    if not md_text:
+        return "<p class='text-muted'>Sin información disponible.</p>"
+
+    # Escapar caracteres HTML básicos pero permitir etiquetas seguras
+    escaped = md_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    # Convertir encabezados
+    escaped = re.sub(r'^### (.*?)$', r'<h3 class="text-primary mt-4 mb-2">\1</h3>', escaped, flags=re.MULTILINE)
+    escaped = re.sub(r'^#### (.*?)$', r'<h4 class="text-info mt-3 mb-1">\1</h4>', escaped, flags=re.MULTILINE)
+
+    # Convertir negritas
+    escaped = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', escaped)
+
+    # Convertir enlaces Markdown [Texto](URL) a etiquetas <a>
+    escaped = re.sub(
+        r'\[([^\]]+)\]\((https?://[^\s\)]+)\)',
+        r'<a href="\2" target="_blank" rel="noopener noreferrer" class="link-btn">🔗 \1</a>',
+        escaped
+    )
+
+    # Convertir URLs sueltas no capturadas
+    escaped = re.sub(
+        r'(?<!href=")(https?://[^\s\)\],<]+)',
+        r'<a href="\1" target="_blank" rel="noopener noreferrer" class="link-btn">\1</a>',
+        escaped
+    )
+
+    # Convertir listas y saltos de línea
+    lineas = []
+    for l in escaped.split("\n"):
+        l_strip = l.strip()
+        if l_strip.startswith("- ") or l_strip.startswith("• "):
+            lineas.append(f"<li class='mb-1'>{l_strip[2:]}</li>")
+        elif l_strip == "---":
+            lineas.append("<hr class='my-3 border-secondary'>")
+        elif l_strip:
+            lineas.append(f"<p class='mb-2'>{l_strip}</p>")
+        else:
+            lineas.append("")
+
+    return "\n".join(lineas)
+
+
+@app.route("/api/procura", methods=["GET", "POST", "OPTIONS"])
+def api_procura():
+    """
+    Endpoint REST para el Módulo de Rastreo y Procura Web Multirrubro.
+    Excluye Mercado Libre y garantiza Cero Pantallas Vacías con fallbacks dinámicos.
+    """
+    if request.method == "OPTIONS":
+        return make_response("", 200)
+
+    if request.method == "POST":
+        payload = request.get_json(silent=True) or request.form.to_dict() or {}
+    else:
+        payload = request.args.to_dict()
+
+    producto = payload.get("query") or payload.get("producto") or payload.get("q") or ""
+    producto = producto.strip()
+    if not producto:
+        return jsonify({
+            "status": "error",
+            "message": "Por favor especifique el término a rastrear mediante el parámetro 'query' o 'q'."
+        }), 400
+
+    ambito = payload.get("ambito", "Nacional")
+    importar = str(payload.get("incluye_importacion", payload.get("importar", "false"))).lower() in ("true", "1", "yes", "si")
+
+    try:
+        hallazgos = web_scraper.buscar_sitios_web(producto, ambito=ambito)
+        dictamen = web_scraper.analizar_con_gemini_v2(producto, hallazgos, ambito=ambito, incluye_importacion=importar)
+
+        return jsonify({
+            "status": "ok",
+            "producto": producto,
+            "ambito": ambito,
+            "incluye_importacion": importar,
+            "total_hallazgos": len(hallazgos),
+            "hallazgos": hallazgos,
+            "dictamen": dictamen
+        })
+    except Exception as e:
+        app_logger.error(f"Error procesando procura en API: {e}", exc_info=True)
+        return jsonify({
+            "status": "error",
+            "message": f"Error interno en el módulo de procura: {str(e)}"
+        }), 500
+
+
+@app.route("/procura", methods=["GET", "POST"])
+def view_procura_panel():
+    """
+    Panel Web de Rastreo y Procura (Render/Cloud).
+    Interfaz interactiva con búsqueda abierta, multirrubro, sin Mercado Libre
+    y con renderizado completo de dictamen y enlaces interactivos.
+    """
+    producto = ""
+    ambito = "Nacional"
+    incluye_importacion = False
+    dictamen_html = ""
+    hallazgos = []
+    busqueda_ejecutada = False
+
+    if request.method == "POST":
+        producto = request.form.get("query", "").strip()
+        ambito = request.form.get("ambito", "Nacional")
+        incluye_importacion = "incluye_importacion" in request.form
+    elif request.method == "GET" and request.args.get("query"):
+        producto = request.args.get("query", "").strip()
+        ambito = request.args.get("ambito", "Nacional")
+        incluye_importacion = request.args.get("incluye_importacion", "0").lower() in ("1", "true", "si")
+
+    if producto:
+        busqueda_ejecutada = True
+        try:
+            hallazgos = web_scraper.buscar_sitios_web(producto, ambito=ambito)
+            dictamen_raw = web_scraper.analizar_con_gemini_v2(
+                producto, hallazgos, ambito=ambito, incluye_importacion=incluye_importacion
+            )
+            dictamen_html = _convert_dictamen_markdown_to_html(dictamen_raw)
+        except Exception as e:
+            app_logger.error(f"Error generando dictamen web: {e}", exc_info=True)
+            dictamen_html = f"<div class='alert alert-warning'>Aviso durante la consulta: {e}</div>"
+
+    html_template = f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inversiones Reinaldo Golindano | Módulo de Procura Web</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {{
+            background-color: #0f172a;
+            color: #f1f5f9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            min-height: 100vh;
+        }}
+        .card-custom {{
+            background-color: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+        }}
+        .text-primary {{ color: #38bdf8 !important; }}
+        .text-info {{ color: #67e8f9 !important; }}
+        .btn-success-custom {{
+            background-color: #10b981;
+            border-color: #10b981;
+            font-weight: 600;
+        }}
+        .btn-success-custom:hover {{
+            background-color: #059669;
+            border-color: #059669;
+        }}
+        .link-btn {{
+            color: #38bdf8;
+            text-decoration: underline;
+            font-weight: 600;
+            display: inline-block;
+            margin: 2px 0;
+            transition: color 0.15s ease;
+        }}
+        .link-btn:hover {{
+            color: #7dd3fc;
+            text-decoration: none;
+        }}
+        .results-box {{
+            background-color: #0b1120;
+            border: 1px solid #1e293b;
+            border-radius: 8px;
+            padding: 24px;
+            line-height: 1.6;
+        }}
+        .badge-ambito {{
+            background-color: #334155;
+            color: #94a3b8;
+            font-size: 0.85rem;
+            padding: 4px 10px;
+            border-radius: 6px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <!-- Encabezado -->
+        <div class="card card-custom p-4 mb-4">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h2 class="h4 mb-1 text-primary">📦 MÓDULO DE PROCURA Y RASTREO WEB ABIERTO</h2>
+                    <p class="text-muted mb-0 small">Inversiones Reinaldo Golindano | Búsqueda Multirrubro con IA (Sin Mercado Libre)</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="/api/sync" class="btn btn-sm btn-outline-secondary">📡 Sincronización REST</a>
+                    <a href="/health" class="btn btn-sm btn-outline-info">💚 Estado Servidor</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Formulario de Búsqueda -->
+        <div class="card card-custom p-4 mb-4">
+            <form method="POST" action="/procura">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-5">
+                        <label class="form-label small text-muted">Producto / Insumo / Repuesto a Rastrear:</label>
+                        <input type="text" name="query" class="form-control form-control-lg bg-dark text-light border-secondary" 
+                               placeholder="Ej: Toner HP CE285A 85A, Taladro, Fusor..." value="{producto}" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted">Ámbito Geográfico:</label>
+                        <select name="ambito" class="form-select bg-dark text-light border-secondary">
+                            <option value="Nacional" {"selected" if ambito == "Nacional" else ""}>🇻🇪 Nacional (Venezuela)</option>
+                            <option value="Internacional" {"selected" if ambito == "Internacional" else ""}>🌍 Internacional (Global)</option>
+                            <option value="Ambos" {"selected" if ambito == "Ambos" else ""}>🌐 Ambos (Nac. e Intl.)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="incluye_importacion" id="chkZoom" {"checked" if incluye_importacion else ""}>
+                            <label class="form-check-label small" for="chkZoom">
+                                Zoom Casilleros
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-success-custom w-100 py-2">
+                            🔍 Rastrear con IA
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Resultados del Dictamen -->
+        {"<div class='card card-custom p-4 mb-4'>" if busqueda_ejecutada else ""}
+        {"<div class='d-flex justify-content-between align-items-center mb-3'>" if busqueda_ejecutada else ""}
+        {"<h3 class='h5 text-primary mb-0'>📋 Dictamen Estratégico de Compra y Opciones Disponibles</h3>" if busqueda_ejecutada else ""}
+        {f"<span class='badge-ambito'>Ámbito: {ambito} | Exclusión: Mercado Libre</span>" if busqueda_ejecutada else ""}
+        {"</div>" if busqueda_ejecutada else ""}
+        {f"<div class='results-box'>{dictamen_html}</div>" if busqueda_ejecutada else ""}
+        {"</div>" if busqueda_ejecutada else ""}
+    </div>
+</body>
+</html>
+"""
+    return html_template, 200, {"Content-Type": "text/html; charset=utf-8"}
 
 
 def run_server():
