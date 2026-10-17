@@ -154,5 +154,28 @@
     "tax_usd": 4.0,
     "total_bs": 25427.13,
     "total_usd": 29.0
+  },
+  {
+    "bcv_rate": 880.1159,
+    "client_name": "Inquibosa",
+    "client_phone": "N/A",
+    "client_rif": "N/A",
+    "date": "2026-10-16 15:02:14",
+    "items": [
+      {
+        "description": "Fotocopiadora Multifuncional Canon",
+        "price_usd": 2050.0,
+        "qty": 1,
+        "specs": "Modelo 529, multifuncional monocromática de alto rendimiento"
+      }
+    ],
+    "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1007_20261017_051227.pdf",
+    "quote_id": "COT-1007",
+    "status": "Emitida",
+    "subtotal_usd": 2050.0,
+    "tax_percent": 16.0,
+    "tax_usd": 328.0,
+    "total_bs": 2092915.61,
+    "total_usd": 2378.0
   }
 ]

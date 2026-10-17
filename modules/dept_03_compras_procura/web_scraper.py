@@ -97,9 +97,7 @@ class GlobalWebScraper:
 
         self.calc_zoom = CalculadoraImportacionZoom()
         self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
 
     def _es_url_permitida(self, url: str, ambito: str) -> bool:
@@ -144,6 +142,10 @@ class GlobalWebScraper:
 
         # Si el ámbito es Nacional: omitir plataformas que solo despachan fuera del país sin envío local
         if ambito == "Nacional" and any(intl in netloc for intl in ["aliexpress.com", "alibaba.com", "ebay.com"]):
+            return False
+
+        # Si el ámbito es Nacional: excluir enlaces internos de buscadores o redirecciones de anuncios
+        if ambito == "Nacional" and (any(se in netloc for se in ["duckduckgo.com", "bing.com", "google."]) or "y.js" in path):
             return False
 
         return True
@@ -249,36 +251,54 @@ class GlobalWebScraper:
         elif ambito == "Ambos":
             query = f"{termino} precio distribuidor store -mercadolibre"
         else:
-            query = f"{termino} precio tienda distribuidor Venezuela -mercadolibre"
+            # Precisión de captura de URLs nacionales (con exclusión de Mercado Libre en parseo)
+            query = f"{termino} precio Venezuela"
 
-        url_busqueda = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
+        endpoints = [
+            f"https://duckduckgo.com/html/?q={urllib.parse.quote(query)}",
+            f"https://lite.duckduckgo.com/lite/?q={urllib.parse.quote(query)}",
+            f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
+        ]
 
-        try:
-            resp = requests.get(url_busqueda, headers=self.headers, timeout=6)
-            if resp.status_code == 200:
-                soup = BeautifulSoup(resp.text, "html.parser")
-                links = soup.find_all("a", class_="result__url", limit=max_resultados)
-                snippets = soup.find_all("a", class_="result__snippet", limit=max_resultados)
+        def _extraer_enlaces_html(url_target):
+            try:
+                resp = requests.get(url_target, headers=self.headers, timeout=8)
+                if resp.status_code == 200:
+                    soup = BeautifulSoup(resp.text, "html.parser")
+                    links = soup.find_all("a", class_="result__url") or soup.find_all("a", class_="result-link")
+                    snippets = soup.find_all("a", class_="result__snippet") or soup.find_all("td", class_="result-snippet")
 
-                for i, link in enumerate(links):
-                    href = link.get("href", "")
-                    if "uddg=" in href:
-                        try:
-                            url_real = href.split("uddg=")[1].split("&")[0]
-                            url_real = urllib.parse.unquote(url_real)
-                        except Exception:
-                            continue
+                    for i, link in enumerate(links[:max_resultados]):
+                        href = link.get("href", "")
+                        if "uddg=" in href:
+                            try:
+                                url_real = href.split("uddg=")[1].split("&")[0]
+                                url_real = urllib.parse.unquote(url_real)
+                            except Exception:
+                                continue
 
-                        if not self._es_url_permitida(url_real, ambito):
-                            continue
+                            if not self._es_url_permitida(url_real, ambito):
+                                continue
 
-                        snippet_txt = snippets[i].get_text(strip=True) if i < len(snippets) else f"Catálogo para {termino}"
-                        resultados.append({
-                            "url": url_real,
-                            "resumen": snippet_txt
-                        })
-        except Exception as e:
-            app_logger.info(f"Aviso: Consulta directa HTML no respondió ({e}), activando enlaces dinámicos.")
+                            if any(r["url"] == url_real for r in resultados):
+                                continue
+
+                            snippet_txt = snippets[i].get_text(strip=True) if i < len(snippets) else f"Catálogo para {termino}"
+                            resultados.append({
+                                "url": url_real,
+                                "resumen": snippet_txt
+                            })
+            except Exception as e:
+                app_logger.info(f"Aviso: Consulta directa HTML no respondió ({e}), activando alternativas.")
+
+        for ep in endpoints:
+            if len(resultados) >= 4:
+                break
+            _extraer_enlaces_html(ep)
+
+        # Si el ámbito es Nacional y se requieren más opciones, probar búsqueda comercial directa
+        if ambito == "Nacional" and len(resultados) < 4:
+            _extraer_enlaces_html(f"https://duckduckgo.com/html/?q={urllib.parse.quote(f'{termino} comprar venezuela')}")
 
         # FALLBACKS DE EXTRACCIÓN (Cero Pantallas Vacías)
         # Si la consulta HTML devolvió 0 o pocos resultados, integramos los enlaces dinámicos generados
@@ -292,79 +312,156 @@ class GlobalWebScraper:
 
         return resultados
 
-    def _sanitizar_enlaces_dictamen(self, texto: str, busqueda: str, ambito: str) -> str:
+    def _resolver_url_por_proveedor(self, texto_contexto: str, busqueda: str, ambito: str, datos_extraidos: list = None, url_existente: str = "") -> str:
         """
-        Regla de Integridad de Enlaces:
-        1. Detecta y reemplaza cualquier dominio inventado, caído o enlace a la raíz/Home
-           por las URLs verificadas de búsqueda directa del producto.
-        2. Garantiza que CADA opción listada en el dictamen contenga su enlace interactivo verificado.
+        Mapeador Semántico Inteligente de Enlaces:
+        Asocia de forma estricta y contextual el proveedor / plataforma mencionado en el texto
+        con su URL correspondiente directa o de búsqueda estructurada.
+        Erradica cruces de plataformas (ej. eBay abriendo AliExpress) y respeta publicaciones
+        profundas reales nacionales e internacionales.
         """
-        enlaces_validos = self._generar_enlaces_dinamicos(busqueda, ambito)
-        if not enlaces_validos:
-            return texto
+        ctx = texto_contexto.lower()
+        termino = busqueda.strip()
+        encoded = urllib.parse.quote(termino)
+        encoded_plus = urllib.parse.quote_plus(termino)
 
-        urls_validas = [e["url"] for e in enlaces_validos]
-        link_md_pattern = re.compile(r'\[([^\]]+)\]\((https?://[^\s\)]+)\)')
-        idx_url = [0]
-
-        # 1. Sustituir enlaces simulados, inventados, caídos o que apunten al Home
-        def replacer(match):
-            label = match.group(1)
-            url = match.group(2)
-
+        # 1. Si la URL existente es válida y ya coincide con la plataforma indicada en el contexto, respetarla
+        if url_existente and url_existente.startswith("http"):
             try:
-                parsed = urllib.parse.urlparse(url)
+                parsed = urllib.parse.urlparse(url_existente)
                 netloc = parsed.netloc.lower()
                 path = parsed.path.lower()
-                query = parsed.query
+                query = parsed.query.lower()
+                es_home = (not path or path == "/") and not query
+                es_ml = "mercadolibre" in netloc or "mercadolibre" in path
+
+                if not es_home and not es_ml:
+                    if "ebay" in ctx and "ebay." in netloc:
+                        return url_existente
+                    if "amazon" in ctx and "amazon." in netloc:
+                        return url_existente
+                    if "aliexpress" in ctx and "aliexpress." in netloc:
+                        return url_existente
+                    if "alibaba" in ctx and "alibaba." in netloc:
+                        return url_existente
+                    if "walmart" in ctx and "walmart." in netloc:
+                        return url_existente
+                    if ("hp" in ctx or "hewlett" in ctx) and "hp.com" in netloc:
+                        return url_existente
+                    if "epa" in ctx and "epaenlinea.com" in netloc:
+                        return url_existente
+                    if ambito == "Nacional" and len(path.strip("/").split("/")) >= 1 and path != "/":
+                        if not any(se in netloc for se in ["google.", "bing.", "duckduckgo.", "yahoo."]):
+                            return url_existente
             except Exception:
-                netloc, path, query = "", "", ""
+                pass
 
-            # Si ya coincide exactamente con una de nuestras URLs verificadas, respetarla
-            if any(url.startswith(v.split("?")[0]) and (query in url or not query) for v in urls_validas):
-                return match.group(0)
+        # 2. Mapeo semántico directo por plataforma internacional
+        if "ebay" in ctx:
+            return f"https://www.ebay.com/sch/i.html?_nkw={encoded}&_sop=12"
+        if "amazon" in ctx:
+            return f"https://www.amazon.com/s?k={encoded}"
+        if "aliexpress" in ctx or "ali express" in ctx:
+            return f"https://www.aliexpress.com/wholesale?SearchText={encoded}"
+        if "alibaba" in ctx or "ali baba" in ctx:
+            return f"https://www.alibaba.com/trade/search?SearchText={encoded}"
+        if "walmart" in ctx:
+            return f"https://www.walmart.com/search?q={encoded}"
+        if ("hp" in ctx or "hewlett" in ctx) and any(w in ctx for w in ["tienda", "store", "oficial", "shop"]):
+            return f"https://www.hp.com/us-en/shop/sitesearch?keyword={encoded}"
+        if "google shopping" in ctx or "shopping global" in ctx:
+            return f"https://www.google.com/search?q={encoded_plus}+price+usd+buy+online"
 
-            # Verificar si la URL generada por la IA es válida o si es una invención / Home
-            es_busqueda_real = any(p in query.lower() for p in ["q=", "search", "k=", "nkw", "query="])
-            es_dominio_reconocido = any(cd in netloc for cd in ["google.", "bing.", "yahoo.", "duckduckgo.", "amazon.", "ebay.", "aliexpress.", "alibaba.", "epaenlinea."])
-            es_home_vacio = (not path or path == "/") and not query
+        # 3. Mapeo para comercios nacionales
+        if "epa" in ctx or "epaenlinea" in ctx:
+            return f"https://ve.epaenlinea.com/catalogsearch/result/?q={encoded}"
 
-            # Si es un dominio inventado, caído, sin búsqueda o Home, sustituirlo
-            if not es_dominio_reconocido or not es_busqueda_real or es_home_vacio:
-                ed = enlaces_validos[idx_url[0] % len(enlaces_validos)]
-                idx_url[0] += 1
-                return f"[{label}]({ed['url']})"
+        # Cotejar con datos_extraidos para comercios venezolanos específicos (ej. braincorp, officenet, ioniashop, yaxa, etc.)
+        for d in (datos_extraidos or []):
+            u = d.get("url", "")
+            if u and "http" in u:
+                try:
+                    dom = urllib.parse.urlparse(u).netloc.lower().replace("www.", "").split(".")[0]
+                    if len(dom) >= 4 and dom in ctx:
+                        return u
+                except Exception:
+                    pass
 
-            return match.group(0)
+        # 4. Fallbacks contextuales según ámbito
+        if ambito == "Internacional":
+            return f"https://www.google.com/search?q={encoded_plus}+price+usd+buy+online"
+        elif ambito == "Ambos":
+            return f"https://www.google.com/search?q={encoded_plus}+precio+usd+store"
+        else:
+            urls_nac = [d["url"] for d in (datos_extraidos or []) if d.get("url") and self._es_url_permitida(d["url"], "Nacional")]
+            if urls_nac:
+                return urls_nac[0]
+            return f"https://www.google.com/search?q={encoded_plus}+site:.ve+-site:mercadolibre.com.ve"
 
-        texto_reemplazado = link_md_pattern.sub(replacer, texto)
+    def _sanitizar_enlaces_dictamen(self, texto: str, busqueda: str, ambito: str, datos_extraidos: list = None) -> str:
+        """
+        Regla de Integridad de Enlaces con Mapeo Semántico:
+        1. Resuelve semánticamente el proveedor mencionado en cada bloque de opción,
+           asociando de forma unívoca su plataforma/tienda correspondiente.
+        2. Para el ámbito Nacional: Prioriza y preserva al 100% las URLs directas y profundas
+           de las publicaciones exactas extraídas.
+        3. Para el ámbito Internacional: Elimina el cruce de tiendas garantizando que
+           eBay lleve a eBay, Amazon a Amazon, Walmart a Walmart, HP Store a HP, etc.
+        4. Asegura que cada opción conserve su enlace interactivo verificado.
+        """
+        link_md_pattern = re.compile(r'\[([^\]]+)\]\((https?://[^\s\)]+)\)')
+        opcion_pattern = re.compile(r'(?m)(^(?:#+\s*)?(?:\*\*)?(?:Opción|Opcion)\s+\d+.*$)')
+        bloques = opcion_pattern.split(texto)
 
-        # 2. Asegurar que CADA opción listada tenga obligatoriamente su enlace interactivo directo
-        opcion_pattern = re.compile(r'(\*\*(?:Opción|Opcion)\s+\d+.*)', re.IGNORECASE)
-        bloques = opcion_pattern.split(texto_reemplazado)
+        urls_nac_disponibles = [
+            d["url"] for d in (datos_extraidos or [])
+            if d.get("url") and self._es_url_permitida(d["url"], "Nacional")
+        ]
+        idx_nac = [0]
 
-        if len(bloques) > 1:
-            resultado = [bloques[0]]
-            for i in range(1, len(bloques), 2):
-                encabezado = bloques[i]
-                contenido = bloques[i + 1] if i + 1 < len(bloques) else ""
+        if len(bloques) <= 1:
+            def replacer_global(m):
+                lbl, u = m.group(1), m.group(2)
+                resolved = self._resolver_url_por_proveedor(lbl, busqueda, ambito, datos_extraidos, url_existente=u)
+                return f"[{lbl}]({resolved})"
+            return link_md_pattern.sub(replacer_global, texto)
 
-                # Si el bloque de esta opción carece de enlace directo
-                if not re.search(r'\[([^\]]+)\]\((https?://[^\s\)]+)\)', contenido):
-                    ed = enlaces_validos[idx_url[0] % len(enlaces_validos)]
-                    idx_url[0] += 1
-                    nombre_fuente = ed.get("plataforma", "Plataforma Verificada")
-                    link_line = f"\n* **Enlace:** [Ver Resultados y Precios de '{busqueda}' ({nombre_fuente})]({ed['url']})"
-                    
-                    if "\n---" in contenido:
-                        contenido = contenido.replace("\n---", f"{link_line}\n---", 1)
-                    else:
-                        contenido = contenido.rstrip() + f"{link_line}\n"
+        resultado = [bloques[0]]
+        for i in range(1, len(bloques), 2):
+            encabezado = bloques[i]
+            contenido = bloques[i + 1] if i + 1 < len(bloques) else ""
+            bloque_texto = encabezado + " " + contenido
 
-                resultado.append(encabezado + contenido)
-            return "".join(resultado)
+            def replacer_bloque(m):
+                lbl, u = m.group(1), m.group(2)
+                resolved = self._resolver_url_por_proveedor(
+                    bloque_texto + " " + lbl,
+                    busqueda,
+                    ambito,
+                    datos_extraidos,
+                    url_existente=u
+                )
+                return f"[{lbl}]({resolved})"
 
-        return texto_reemplazado
+            contenido_limpio = link_md_pattern.sub(replacer_bloque, contenido)
+
+            # Si el bloque de esta opción carece de enlace directo
+            if not re.search(r'\[([^\]]+)\]\((https?://[^\s\)]+)\)', contenido_limpio):
+                if ambito == "Nacional" and urls_nac_disponibles:
+                    resolved = urls_nac_disponibles[idx_nac[0] % len(urls_nac_disponibles)]
+                    idx_nac[0] += 1
+                else:
+                    resolved = self._resolver_url_por_proveedor(bloque_texto, busqueda, ambito, datos_extraidos)
+
+                link_line = f"\n* **Enlace:** [Ver Oferta / Producto de '{busqueda}']({resolved})"
+                if "\n---" in contenido_limpio:
+                    contenido_limpio = contenido_limpio.replace("\n---", f"{link_line}\n---", 1)
+                else:
+                    contenido_limpio = contenido_limpio.rstrip() + f"{link_line}\n"
+
+            resultado.append(encabezado + contenido_limpio)
+
+        return "".join(resultado)
 
     def analizar_con_gemini_v2(self, producto: str, datos_extraidos: list, ambito: str = "Nacional", incluye_importacion: bool = False) -> str:
         """
@@ -424,6 +521,24 @@ class GlobalWebScraper:
         else:
             instruccion_zoom = "INSTRUCCIÓN LOGÍSTICA: Muestra únicamente los precios base de los proveedores en USD."
 
+        if ambito == "Nacional":
+            reglas_enlaces = f"""
+        REGLAS ESTRICTAS DE ASIGNACIÓN DE ENLACES (ÁMBITO NACIONAL):
+        1. Para CADA opción comercial, el campo **Enlace:** DEBE ser obligatoriamente la URL exacta y profunda a la publicación o ficha del producto obtenida de una de las fuentes provistas arriba en "FUENTES Y ENLACES" (ej: la URL completa a la página del producto en la tienda venezolana con su precio y disponibilidad).
+        2. Queda TERMINANTEMENTE PROHIBIDO colocar URLs de motores de búsqueda genéricos (google, bing, duckduckgo) o enlaces que apunten a la raíz/Home. Asigna la URL profunda y directa del producto.
+        3. Formato estricto para cada opción:
+           **Enlace:** [Ver Producto / Oferta en Tienda](URL_DIRECTA_DEL_PRODUCTO)
+        """
+        else:
+            reglas_enlaces = f"""
+        REGLAS ESTRICTAS DE ASIGNACIÓN DE ENLACES:
+        1. Para el campo **Enlace:**, queda TERMINANTEMENTE PROHIBIDO inventar nombres de dominio (ej. NO inventar https://tiendafalsa.com.ve).
+        2. Queda TERMINANTEMENTE PROHIBIDO colocar enlaces que lleven al Home o página principal sin parámetros de búsqueda.
+        3. DEBES utilizar OBLIGATORIAMENTE uno de los enlaces directos de búsqueda provistos arriba en "FUENTES Y ENLACES", asignando un enlace directo diferente a cada opción.
+        4. Formato estricto para cada opción:
+           **Enlace:** [Ver Resultados y Precios de '{termino}'](URL_DIRECTA_DE_LAS_FUENTES)
+        """
+
         # PROMPT MADRE INTEGRADO MULTIRRUBRO
         prompt = f"""
         Eres el Gerente Senior de Compras y Estratega de Procura Comercial para "Inversiones Reinaldo Golindano".
@@ -439,12 +554,7 @@ class GlobalWebScraper:
         FUENTES Y ENLACES DE BÚSQUEDA DIRECTA DISPONIBLES (UTILIZA ESTOS ENLACES):
         {datos_extraidos}
 
-        REGLAS ESTRICTAS DE ASIGNACIÓN DE ENLACES:
-        1. Para el campo **Enlace:**, queda TERMINANTEMENTE PROHIBIDO inventar nombres de dominio (ej. NO inventar https://tiendafalsa.com.ve).
-        2. Queda TERMINANTEMENTE PROHIBIDO colocar enlaces que lleven al Home o página principal sin parámetros de búsqueda.
-        3. DEBES utilizar OBLIGATORIAMENTE uno de los enlaces directos de búsqueda provistos arriba en "FUENTES Y ENLACES", asignando un enlace directo diferente a cada opción.
-        4. Formato estricto para cada opción:
-           **Enlace:** [Ver Resultados y Precios de '{termino}'](URL_DIRECTA_DE_LAS_FUENTES)
+        {reglas_enlaces}
 
         INSTRUCCIONES DE FORMATO Y ESTRUCTURA:
         1. Analiza las fuentes y presenta entre 3 y 5 opciones comerciales concretas, ORDENADAS ESTRICTAMENTE DE MENOR A MAYOR PRECIO BASE EN USD (Opción 1 = la más económica).
@@ -454,20 +564,20 @@ class GlobalWebScraper:
            - **Precio Base Estimado:** En USD (indicar si es precio unitario o lote/pack si aplica).
            - {ubicacion_fmt}
            - **Análisis Comercial:** Breve evaluación de conveniencia, disponibilidad y margen.
-           - **Enlace:** [Ver Resultados y Precios de '{termino}'](URL_DIRECTA_DE_LAS_FUENTES)
+           - **Enlace:** [Ver Resultados / Producto de '{termino}'](URL_DIRECTA)
            - {instruccion_zoom}
         3. Concluye con un **Dictamen Estratégico de Compra** indicando la opción recomendada según relación costo-beneficio y tiempo de entrega.
         """
 
         # Lista de modelos resilientes probados y ordenados por rapidez
         modelos = [
+            "gemini-3.8-flash",
             "gemini-3.5-flash-lite",
             "gemini-flash-lite-latest",
             "gemini-3.6-flash",
             "gemini-3.7-flash",
             "gemini-flash-latest",
-            "gemini-3.5-flash",
-            "gemini-3.8-flash"
+            "gemini-3.5-flash"
         ]
 
         for modelo in modelos:
@@ -480,7 +590,7 @@ class GlobalWebScraper:
                         )
                         if response and response.text and len(response.text.strip()) > 50:
                             texto_limpio = self._filtrar_salida_mercadolibre(response.text.strip())
-                            texto_sanitizado = self._sanitizar_enlaces_dictamen(texto_limpio, termino, ambito)
+                            texto_sanitizado = self._sanitizar_enlaces_dictamen(texto_limpio, termino, ambito, datos_extraidos)
                             return texto_sanitizado
                     elif not self.usar_genai_nuevo and hasattr(self, "model_old"):
                         import google.generativeai as genai_old
@@ -488,7 +598,7 @@ class GlobalWebScraper:
                         response = m.generate_content(prompt)
                         if response and response.text and len(response.text.strip()) > 50:
                             texto_limpio = self._filtrar_salida_mercadolibre(response.text.strip())
-                            texto_sanitizado = self._sanitizar_enlaces_dictamen(texto_limpio, termino, ambito)
+                            texto_sanitizado = self._sanitizar_enlaces_dictamen(texto_limpio, termino, ambito, datos_extraidos)
                             return texto_sanitizado
                 except Exception as e:
                     err_msg = str(e).lower()
@@ -499,7 +609,7 @@ class GlobalWebScraper:
 
         # FALLBACK AUTÓNOMO (Cero Pantallas Vacías): Si la API externa no respondió, generar dictamen completo
         app_logger.warning("Generando dictamen autónomo de contingencia para procura...")
-        return self._generar_dictamen_autonomo(termino, ambito, incluye_importacion, peso_est, vol_est, es_pesado, categoria_prod, enlaces_dinamicos)
+        return self._generar_dictamen_autonomo(termino, ambito, incluye_importacion, peso_est, vol_est, es_pesado, categoria_prod, enlaces_dinamicos, datos_extraidos)
 
     def _filtrar_salida_mercadolibre(self, texto: str) -> str:
         """Elimina cualquier mención accidental o enlace a Mercado Libre en la respuesta."""
@@ -520,7 +630,8 @@ class GlobalWebScraper:
         vol_est: float,
         es_pesado: bool,
         categoria_prod: str,
-        enlaces_dinamicos: List[Dict[str, str]]
+        enlaces_dinamicos: List[Dict[str, str]],
+        datos_extraidos: list = None
     ) -> str:
         """
         Genera un dictamen comercial estructurado y completo en caso de contingencia de API,
@@ -576,12 +687,29 @@ class GlobalWebScraper:
                 ("Red Comercial Nacional (Bing .VE)", p_base_4, "Venezuela (Nacional)", next((e["url"] for e in enlaces_dinamicos if "bing.com" in e["url"] and "site:.ve" in e["url"]), "#"), "Proveedores y tiendas del mercado venezolano con facturación local.")
             ]
         else:  # Nacional
-            opciones = [
-                ("Comercios y Proveedores Registrados en Venezuela (Google .VE)", p_base_1, "Venezuela (Nacional)", enlaces_dinamicos[0]["url"] if enlaces_dinamicos else "#", "Listado directo de proveedores con inventario en territorio nacional."),
-                ("Distribuidores Mayoristas y Cotizaciones en USD (Google VE)", p_base_2, "Venezuela (Caracas / Valencia)", enlaces_dinamicos[1]["url"] if len(enlaces_dinamicos) > 1 else "#", "Ofertas comerciales y precios de mayoristas verificados en Venezuela."),
-                ("Tiendas Comerciales y Red de Suministros (Bing .VE)", p_base_3, "Venezuela (Carabobo / Aragua / Centro)", enlaces_dinamicos[2]["url"] if len(enlaces_dinamicos) > 2 else "#", "Puntos de venta de insumos y equipos con entrega o despacho local."),
-                ("Directorio Comercial y Proveedores Nacionales (DuckDuckGo .VE)", p_base_4, "Venezuela (Nacional)", enlaces_dinamicos[3]["url"] if len(enlaces_dinamicos) > 3 else "#", "Opciones adicionales de empresas y tiendas del mercado venezolano.")
-            ]
+            urls_nac = [d["url"] for d in (datos_extraidos or []) if d.get("url") and self._es_url_permitida(d["url"], "Nacional")]
+            if urls_nac:
+                opciones = []
+                for idx_u, u_nac in enumerate(urls_nac[:4], start=1):
+                    try:
+                        p_domain = urllib.parse.urlparse(u_nac).netloc.replace("www.", "")
+                    except Exception:
+                        p_domain = "Comercio en Venezuela"
+                    p_base = [p_base_1, p_base_2, p_base_3, p_base_4][idx_u - 1]
+                    opciones.append((
+                        f"Proveedor / Comercio en Venezuela ({p_domain})",
+                        p_base,
+                        "Venezuela (Nacional)",
+                        u_nac,
+                        "Publicación directa verificada con inventario y precio disponible en el mercado nacional."
+                    ))
+            else:
+                opciones = [
+                    ("Comercios y Proveedores Registrados en Venezuela (Google .VE)", p_base_1, "Venezuela (Nacional)", enlaces_dinamicos[0]["url"] if enlaces_dinamicos else "#", "Listado directo de proveedores con inventario en territorio nacional."),
+                    ("Distribuidores Mayoristas y Cotizaciones en USD (Google VE)", p_base_2, "Venezuela (Caracas / Valencia)", enlaces_dinamicos[1]["url"] if len(enlaces_dinamicos) > 1 else "#", "Ofertas comerciales y precios de mayoristas verificados en Venezuela."),
+                    ("Tiendas Comerciales y Red de Suministros (Bing .VE)", p_base_3, "Venezuela (Carabobo / Aragua / Centro)", enlaces_dinamicos[2]["url"] if len(enlaces_dinamicos) > 2 else "#", "Puntos de venta de insumos y equipos con entrega o despacho local."),
+                    ("Directorio Comercial y Proveedores Nacionales (DuckDuckGo .VE)", p_base_4, "Venezuela (Nacional)", enlaces_dinamicos[3]["url"] if len(enlaces_dinamicos) > 3 else "#", "Opciones adicionales de empresas y tiendas del mercado venezolano.")
+                ]
 
         for i, (prov, precio, ubi, url, desc) in enumerate(opciones, start=1):
             doc.append(f"#### Opción {i}: {producto}")
