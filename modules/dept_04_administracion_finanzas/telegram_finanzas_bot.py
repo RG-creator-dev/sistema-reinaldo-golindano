@@ -10,6 +10,7 @@ Descripción: Bot de Telegram para recepción de comprobantes y gestión contabl
 import os
 import sys
 import time
+import requests
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
@@ -24,6 +25,26 @@ contable_agent = AccountingAgent()
 
 # Obtener el token directamente desde el entorno
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_API_TOKEN_ACTIVO_FINANZAS")
+
+def enviar_a_make(texto_mensaje, url_imagen=None):
+    """Envía los datos procesados del comprobante desde Render hacia el Webhook de Make."""
+    MAKE_WEBHOOK_URL = "https://hook.us2.make.com/ricai49pqfhs9o5zraf6l6a8922wvetv"
+
+    # Asegurarnos de que el texto nunca vaya vacío para que Make lo procese siempre
+    texto_final = texto_mensaje if texto_mensaje and len(texto_mensaje.strip()) > 0 else "Comprobante de pago recibido por Telegram sin descripción"
+
+    payload = {
+        "text": texto_final,
+        "image_url": url_imagen,
+        "fuente": "Render_Sistema_Gestion"
+    }
+
+    try:
+        app_logger.info(f"🚀 [MAKE WEBHOOK] Intentando conectar con: {MAKE_WEBHOOK_URL} con payload text: {texto_final[:30]}...")
+        response = requests.post(MAKE_WEBHOOK_URL, json=payload, timeout=20)
+        app_logger.info(f"✅ [MAKE WEBHOOK] Respuesta exitosa. Status Code: {response.status_code}")
+    except Exception as e:
+        app_logger.error(f"❌ [MAKE WEBHOOK] Error crítico conectando con Make: {e}")
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Comando de bienvenida del bot."""
@@ -88,6 +109,15 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
         if response and response.success:
             await message.reply_text(f"✅ ¡Transacción registrada con éxito!\n\n{response.message}")
+            
+            # Disparo incondicional y forzado hacia Make con registro extendido en logs
+            try:
+                app_logger.info("🚀 Disparando retransmisión hacia Make Webhook...")
+                # Si el usuario puso un caption lo usamos, si no, usamos el resultado del agente como respaldo de texto útil
+                texto_a_enviar = caption if caption else f"Registro: {response.message[:100]}"
+                enviar_a_make(texto_mensaje=texto_a_enviar, url_imagen=image_path)
+            except Exception as webhook_err:
+                app_logger.error(f"⚠️ Error al ejecutar envío a Make: {webhook_err}")
         else:
             error_msg = ultimo_error or (response.message if response else "Error desconocido")
             await message.reply_text(f"❌ No se pudo procesar el comprobante tras varios reintentos automáticos:\n{error_msg}")
