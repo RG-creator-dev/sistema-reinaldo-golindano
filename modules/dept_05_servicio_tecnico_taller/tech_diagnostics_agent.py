@@ -80,6 +80,8 @@ class TechDiagnosticsAgent(BaseAgent):
             return self.actualizar_estado_orden(payload)
         elif task_type == "get_workshop_jobs":
             return AgentResponse(success=True, data=self._load_workshop_jobs())
+        elif task_type == "archive_old_jobs":
+            return self.archivar_ordenes_cerradas()
         else:
             return AgentResponse(success=False, message=f"Tarea '{task_type}' desconocida.")
 
@@ -89,7 +91,6 @@ class TechDiagnosticsAgent(BaseAgent):
         modelo = payload.get("model", "")
         sintomas = payload.get("symptoms", "")
 
-        # Verificar coincidencias clave locales
         kb_sugerencias = []
         marca_kb = self.kb.get(marca, {})
         for k, v in marca_kb.items():
@@ -132,7 +133,7 @@ class TechDiagnosticsAgent(BaseAgent):
             )
 
     def registrar_orden_servicio(self, payload: Dict[str, Any]) -> AgentResponse:
-        """Crea una orden de servicio técnico en taller."""
+        """Crea una orden de servicio técnico en taller con indicador visual de alerta."""
         job_id = f"ST-{int(time.time() % 100000)}"
         cliente = payload.get("client_name", "Particular")
         telefono = payload.get("client_phone", "N/A")
@@ -148,7 +149,8 @@ class TechDiagnosticsAgent(BaseAgent):
             "equipment": equipo,
             "symptoms": falla,
             "estimated_cost_usd": costo_estimado,
-            "status": "En Banco de Prueba"  # En Banco de Prueba, Espera Repuesto, Reparado, Entregado
+            "status": "En Banco de Prueba",  # Estados permitidos: En Banco de Prueba, Espera Repuesto, Reparado, Entregado
+            "status_style": "color: #dc3545; font-weight: bold;"  # Rojo de alerta para banco de prueba
         }
 
         jobs = self._load_workshop_jobs()
@@ -160,15 +162,66 @@ class TechDiagnosticsAgent(BaseAgent):
 
     def actualizar_estado_orden(self, payload: Dict[str, Any]) -> AgentResponse:
         job_id = payload.get("job_id")
-        nuevo_estado = payload.get("status", "Reparado")
+        nuevo_estado = payload.get("status", "Reparado - Listo para Entrega")
+
+        # Asignación de estilos dinámicos seguros para la vista
+        if "Banco" in nuevo_estado or "Espera" in nuevo_estado:
+            estilo = "color: #dc3545; font-weight: bold;"  # Rojo alerta
+        else:
+            estilo = "color: #28a745; font-weight: bold;"  # Verde operativo
 
         jobs = self._load_workshop_jobs()
         encontrada = next((x for x in jobs if x.get("job_id") == job_id), None)
         if encontrada:
             encontrada["status"] = nuevo_estado
+            encontrada["status_style"] = estilo
             encontrada["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             self._save_workshop_jobs(jobs)
             self.emit_event("repair_job_updated", encontrada)
             return AgentResponse(success=True, data=encontrada, message=f"Orden {job_id} actualizada a '{nuevo_estado}'.")
 
         return AgentResponse(success=False, message=f"Orden {job_id} no encontrada.")
+
+    def archivar_ordenes_cerradas(self) -> AgentResponse:
+        """Mueve las órdenes entregadas/cerradas al histórico mensual y limpia el panel activo."""
+        jobs = self._load_workshop_jobs()
+        activos = []
+        archivados = []
+
+        for job in jobs:
+            if "Entregado" in job.get("status", "") or "Cerrado" in job.get("status", ""):
+                archivados.append(job)
+            else:
+                activos.append(job)
+
+        if not archivados:
+            return AgentResponse(success=True, data={"archived_count": 0}, message="No hay órdenes cerradas para archivar.")
+
+        # Guardar en carpeta de exportación histórica mensual
+        historico_dir = os.path.join("export", "taller_historico")
+        os.makedirs(historico_dir, exist_ok=True)
+        mes_actual = datetime.now().strftime("%Y-%m")
+        historico_file = os.path.join(historico_dir, f"taller_{mes_actual}.json")
+
+        try:
+            existente = []
+            if os.path.exists(historico_file):
+                with open(historico_file, "r", encoding="utf-8") as f:
+                    existente = json.load(f)
+            
+            existente.extend(archivados)
+            with open(historico_file, "w", encoding="utf-8") as f:
+                json.dump(existente, f, indent=2, ensure_ascii=False)
+
+            # Actualizar el archivo principal solo con los equipos activos en proceso
+            self._save_workshop_jobs(activos)
+
+            app_logger.info(f"Se archivaron {len(archivados)} órdenes de taller al histórico {mes_actual}.")
+            return AgentResponse(
+                success=True, 
+                data={"archived_count": len(archivados), "active_count": len(activos)}, 
+                message=f"Se archivaron {len(archivados)} órdenes cerradas exitosamente."
+            )
+        except Exception as e:
+            app_logger.error(f"Error archivando órdenes de taller: {e}")
+            return AgentResponse(success=False, message=f"Error en proceso de archivo: {e}")

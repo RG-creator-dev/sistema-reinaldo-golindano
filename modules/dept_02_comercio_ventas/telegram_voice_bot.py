@@ -11,6 +11,7 @@ Descripción: Bot interactivo de Telegram (@InversionesRG_bot) para recepción
 
 import os
 import time
+import json
 import threading
 from datetime import datetime
 from typing import Dict, Any, List, Optional
@@ -159,7 +160,6 @@ class TelegramBotController:
                                 app_logger.warning(f"⚠️ Intento {intento}/3 fallido en {modelo} por saturación (503). Reintentando en {intento * 2}s...")
                                 time.sleep(intento * 2)
                             else:
-                                # Si es otro error diferente, rompemos e intentamos otro modelo
                                 break
                     if resp and resp.text:
                         break
@@ -225,6 +225,31 @@ class TelegramBotController:
                 else:
                     self.bot.send_message(chat_id, caption)
 
+                # --- BLOQUE DE PERSISTENCIA LOCAL PARA LA APP DE ESCRITORIO ---
+                try:
+                    quotes_file = "data/quotes.json"
+                    os.makedirs(os.path.dirname(quotes_file), exist_ok=True)
+                    all_quotes = []
+                    if os.path.exists(quotes_file):
+                        with open(quotes_file, "r", encoding="utf-8") as qf:
+                            all_quotes = json.load(qf)
+                    
+                    quote_record = {
+                        "quote_id": quote_id,
+                        "client_name": user_name,
+                        "total_usd": total_usd,
+                        "total_bs": total_bs,
+                        "bcv_rate": bcv,
+                        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "pdf_path": pdf_path
+                    }
+                    all_quotes.append(quote_record)
+                    with open(quotes_file, "w", encoding="utf-8") as qf:
+                        json.dump(all_quotes, qf, indent=2, ensure_ascii=False)
+                except Exception as save_err:
+                    app_logger.error(f"Error guardando cotización local: {save_err}")
+                # -------------------------------------------------------------
+
                 self._log_activity(user_name, "PDF Entregado", f"{quote_id} - ${total_usd}")
 
             else:
@@ -279,3 +304,4 @@ class TelegramBotController:
 
 # Instancia única controladora del Bot
 telegram_controller = TelegramBotController()
+

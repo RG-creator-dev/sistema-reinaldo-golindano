@@ -177,5 +177,74 @@
     "tax_usd": 328.0,
     "total_bs": 2092915.61,
     "total_usd": 2378.0
+  },
+  {
+    "bcv_rate": 881.8769,
+    "client_name": "Cliente General",
+    "client_phone": "N/A",
+    "client_rif": "N/A",
+    "date": "2026-10-20 11:07:52",
+    "items": [
+      {
+        "description": "Cartucho de tóner para fotocopiadora Xerox",
+        "price_usd": 35.0,
+        "qty": 1,
+        "specs": "Compatibilidad: Xerox WorkCentre 3550. Rendimiento aprox.: 11.000 páginas"
+      }
+    ],
+    "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1008_20261020_081917.pdf",
+    "quote_id": "COT-1008",
+    "status": "Emitida",
+    "subtotal_usd": 35.0,
+    "tax_percent": 16.0,
+    "tax_usd": 5.6,
+    "total_bs": 35804.2,
+    "total_usd": 40.6
+  },
+  {
+    "bcv_rate": 881.8769,
+    "client_name": "Universidad Arturo Michelena",
+    "client_phone": "N/A",
+    "client_rif": "N/A",
+    "date": "2026-10-20 16:05:52",
+    "items": [
+      {
+        "description": "Tóner HP 1105A Jumbo",
+        "price_usd": 17.0,
+        "qty": 20,
+        "specs": "Alto rendimiento (aprox. 5.000 impresiones), compatible con impresoras HP Laser 107a, 107w, MFP 135a, 135w, MFP 137fnw"
+      }
+    ],
+    "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1009_20261020_145429.pdf",
+    "quote_id": "COT-1009",
+    "status": "Emitida",
+    "subtotal_usd": 340.0,
+    "tax_percent": 16.0,
+    "tax_usd": 54.4,
+    "total_bs": 347812.25,
+    "total_usd": 394.4
+  },
+  {
+    "bcv_rate": 881.8769,
+    "client_name": "Universidad Arturo Michelena",
+    "client_phone": "N/A",
+    "client_rif": "N/A",
+    "date": "2026-10-20 16:08:30",
+    "items": [
+      {
+        "description": "Tóner HP 105A Jumbo",
+        "price_usd": 17.0,
+        "qty": 20,
+        "specs": "Capacidad para 5.000 impresiones aproximadamente, compatible con serie HP Laser 107a, 107w, 135a, 135w, 137fnw"
+      }
+    ],
+    "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1010_20261020_145429.pdf",
+    "quote_id": "COT-1010",
+    "status": "Emitida",
+    "subtotal_usd": 340.0,
+    "tax_percent": 16.0,
+    "tax_usd": 54.4,
+    "total_bs": 347812.25,
+    "total_usd": 394.4
   }
 ]

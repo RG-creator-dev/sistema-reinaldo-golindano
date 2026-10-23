@@ -10,6 +10,7 @@ Descripción: Vista gráfica CustomTkinter para control financiero, Libro Mayor,
 
 import threading
 import tkinter as tk
+from datetime import datetime, date
 from tkinter import ttk, messagebox
 import customtkinter as ctk
 from ui.theme import Theme
@@ -23,6 +24,9 @@ class AdminFinanzasView(ctk.CTkFrame):
     def __init__(self, master, agent: AccountingAgent = None):
         super().__init__(master, fg_color=Theme.BG_DARK)
         self.agent = agent or AccountingAgent()
+        # Período activo: tupla (year, month) — mes actual por defecto
+        _hoy = date.today()
+        self._periodo_seleccionado = (_hoy.year, _hoy.month)
 
         self._init_ui()
         self.actualizar_balance()
@@ -71,6 +75,19 @@ class AdminFinanzasView(ctk.CTkFrame):
         )
         btn_refresh_bcv.pack(side="right", padx=10, pady=5)
 
+        # Botón discreto "+ Nueva Transacción" en la cabecera
+        btn_nueva_tx = ctk.CTkButton(
+            bcv_box,
+            text="+ Nueva Transacción",
+            width=155,
+            height=28,
+            font=Theme.FONT_SMALL,
+            fg_color=Theme.CARD_BORDER,
+            hover_color=Theme.PRIMARY,
+            command=self.abrir_dialogo_transaccion
+        )
+        btn_nueva_tx.pack(side="right", padx=(10, 4), pady=5)
+
         # 2. Tarjetas de Resumen Financiero (4 Tarjetas: Saldo Inicial, Ingresos, Gastos, Balance Neto)
         cards_frame = ctk.CTkFrame(self, fg_color="transparent")
         cards_frame.pack(fill="x", padx=15, pady=5)
@@ -116,71 +133,58 @@ class AdminFinanzasView(ctk.CTkFrame):
         self.lbl_val_balance = ctk.CTkLabel(self.card_balance, text="$0.00 | 0.00 Bs", font=Theme.FONT_SUBTITLE, text_color=Theme.PRIMARY)
         self.lbl_val_balance.pack(pady=(0, 31))
 
-        # 3. Contenedor Inferior: Formulario + Tabla del Libro Mayor
+        # 3. Contenedor Principal: Tabla del Libro Mayor (ancho completo)
         main_content = ctk.CTkFrame(self, fg_color="transparent")
         main_content.pack(fill="both", expand=True, padx=15, pady=10)
         main_content.grid_columnconfigure(0, weight=1)
-        main_content.grid_columnconfigure(1, weight=2)
         main_content.grid_rowconfigure(0, weight=1)
-
-        # Formulario de Registro
-        form_frame = ctk.CTkFrame(main_content, fg_color=Theme.CARD_BG, corner_radius=10, border_width=1, border_color=Theme.CARD_BORDER)
-        form_frame.grid(row=0, column=0, padx=(0, 10), sticky="nsew", pady=5)
-
-        ctk.CTkLabel(form_frame, text="Nueva Transacción", font=Theme.FONT_SUBTITLE, text_color=Theme.TEXT_MAIN).pack(anchor="w", padx=15, pady=(10, 4))
-
-        # Tipo de Operación
-        ctk.CTkLabel(form_frame, text="Tipo de Movimiento:", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=15, pady=(2, 0))
-        self.seg_tipo = ctk.CTkSegmentedButton(form_frame, values=["Ingreso", "Gasto"], selected_color=Theme.PRIMARY)
-        self.seg_tipo.set("Ingreso")
-        self.seg_tipo.pack(fill="x", padx=15, pady=2)
-
-        # Monto en USD
-        ctk.CTkLabel(form_frame, text="Monto (USD):", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=15, pady=(2, 0))
-        self.entry_monto = ctk.CTkEntry(form_frame, placeholder_text="0.00", font=Theme.FONT_BODY)
-        self.entry_monto.pack(fill="x", padx=15, pady=2)
-
-        # Método de Pago
-        ctk.CTkLabel(form_frame, text="Método de Pago:", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=15, pady=(2, 0))
-        self.combo_metodo = ctk.CTkComboBox(
-            form_frame,
-            values=["Pago Móvil", "Transferencia Bancaria", "Binance USDT", "Efectivo USD", "Efectivo Bs"],
-            state="readonly"
-        )
-        self.combo_metodo.set("Pago Móvil")
-        self.combo_metodo.pack(fill="x", padx=15, pady=2)
-
-        # Categoría
-        ctk.CTkLabel(form_frame, text="Categoría:", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=15, pady=(2, 0))
-        self.combo_categoria = ctk.CTkComboBox(
-            form_frame,
-            values=["Servicio Técnico", "Venta de Tóner/Insumos", "Compra Repuestos", "Gastos Operativos", "Flete Zoom Casilleros", "Otros"],
-            state="readonly"
-        )
-        self.combo_categoria.set("Servicio Técnico")
-        self.combo_categoria.pack(fill="x", padx=15, pady=2)
-
-        # Descripción / Referencia
-        ctk.CTkLabel(form_frame, text="Descripción / N° Referencia:", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=15, pady=(2, 0))
-        self.entry_desc = ctk.CTkEntry(form_frame, placeholder_text="Ej: Mantenimiento L3250 Ref: 8934", font=Theme.FONT_BODY)
-        self.entry_desc.pack(fill="x", padx=15, pady=2)
-
-        # Botón Guardar (con márgenes equilibrados para verse completo)
-        btn_guardar = ctk.CTkButton(
-            form_frame,
-            text="💾 Registrar en Libro Mayor",
-            font=Theme.FONT_BODY_BOLD,
-            fg_color=Theme.SUCCESS,
-            hover_color=Theme.SUCCESS_HOVER,
-            command=self.registrar_transaccion
-        )
-        btn_guardar.pack(fill="x", padx=15, pady=(12, 12))
 
         # Tabla del Libro Mayor
         table_container = ctk.CTkFrame(main_content, fg_color=Theme.CARD_BG, corner_radius=10, border_width=1, border_color=Theme.CARD_BORDER)
-        table_container.grid(row=0, column=1, sticky="nsew", pady=5)
+        table_container.grid(row=0, column=0, sticky="nsew", pady=5)
 
-        ctk.CTkLabel(table_container, text="Libro Mayor (Movimientos Contables)", font=Theme.FONT_SUBTITLE, text_color=Theme.TEXT_MAIN).pack(anchor="w", padx=15, pady=(12, 8))
+        # ── Barra de cabecera de la tabla: título + selector de período ──
+        table_header = ctk.CTkFrame(table_container, fg_color="transparent")
+        table_header.pack(fill="x", padx=15, pady=(12, 4))
+
+        ctk.CTkLabel(
+            table_header,
+            text="Libro Mayor (Movimientos Contables)",
+            font=Theme.FONT_SUBTITLE,
+            text_color=Theme.TEXT_MAIN
+        ).pack(side="left")
+
+        # Selector de período (combo derecho)
+        periodo_right = ctk.CTkFrame(table_header, fg_color="transparent")
+        periodo_right.pack(side="right")
+
+        ctk.CTkLabel(
+            periodo_right,
+            text="Período:",
+            font=Theme.FONT_SMALL,
+            text_color=Theme.TEXT_MUTED
+        ).pack(side="left", padx=(0, 6))
+
+        self._periodo_opciones = self._generar_opciones_periodo()
+        self.combo_periodo = ctk.CTkComboBox(
+            periodo_right,
+            values=self._periodo_opciones,
+            width=160,
+            state="readonly",
+            command=self._on_cambio_periodo
+        )
+        # Seleccionar el mes actual (primer elemento = más reciente)
+        self.combo_periodo.set(self._periodo_opciones[0])
+        self.combo_periodo.pack(side="left")
+
+        # Etiqueta decorativa que muestra el período activo junto a la tabla
+        self.lbl_periodo_activo = ctk.CTkLabel(
+            table_container,
+            text="",
+            font=Theme.FONT_SMALL,
+            text_color=Theme.TEXT_MUTED
+        )
+        self.lbl_periodo_activo.pack(anchor="w", padx=15, pady=(0, 6))
 
         # Estilo de Treeview nativo de Tkinter integrado con paleta oscura
         style = ttk.Style()
@@ -257,6 +261,93 @@ class AdminFinanzasView(ctk.CTkFrame):
         btn_save = ctk.CTkButton(dialog, text="Guardar Saldo", fg_color=Theme.PRIMARY, hover_color=Theme.PRIMARY_HOVER, command=guardar)
         btn_save.pack(pady=(10, 15))
 
+    def abrir_dialogo_transaccion(self):
+        """Abre un modal flotante con el formulario de registro de transacción."""
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Nueva Transacción")
+        dialog.geometry("420x380")
+        dialog.resizable(False, False)
+        dialog.grab_set()
+
+        ctk.CTkLabel(dialog, text="Registrar Nueva Transacción", font=Theme.FONT_SUBTITLE, text_color=Theme.TEXT_MAIN).pack(anchor="w", padx=20, pady=(16, 8))
+
+        # Tipo de Movimiento
+        ctk.CTkLabel(dialog, text="Tipo de Movimiento:", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=20, pady=(4, 0))
+        seg_tipo_dlg = ctk.CTkSegmentedButton(dialog, values=["Ingreso", "Gasto"], selected_color=Theme.PRIMARY)
+        seg_tipo_dlg.set("Ingreso")
+        seg_tipo_dlg.pack(fill="x", padx=20, pady=2)
+
+        # Monto en USD
+        ctk.CTkLabel(dialog, text="Monto (USD):", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=20, pady=(4, 0))
+        entry_monto_dlg = ctk.CTkEntry(dialog, placeholder_text="0.00", font=Theme.FONT_BODY)
+        entry_monto_dlg.pack(fill="x", padx=20, pady=2)
+
+        # Método de Pago
+        ctk.CTkLabel(dialog, text="Método de Pago:", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=20, pady=(4, 0))
+        combo_metodo_dlg = ctk.CTkComboBox(
+            dialog,
+            values=["Pago Móvil", "Transferencia Bancaria", "Binance USDT", "Efectivo USD", "Efectivo Bs"],
+            state="readonly"
+        )
+        combo_metodo_dlg.set("Pago Móvil")
+        combo_metodo_dlg.pack(fill="x", padx=20, pady=2)
+
+        # Categoría
+        ctk.CTkLabel(dialog, text="Categoría:", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=20, pady=(4, 0))
+        combo_cat_dlg = ctk.CTkComboBox(
+            dialog,
+            values=["Servicio Técnico", "Venta de Tóner/Insumos", "Compra Repuestos", "Gastos Operativos", "Flete Zoom Casilleros", "Otros"],
+            state="readonly"
+        )
+        combo_cat_dlg.set("Servicio Técnico")
+        combo_cat_dlg.pack(fill="x", padx=20, pady=2)
+
+        # Descripción / Referencia
+        ctk.CTkLabel(dialog, text="Descripción / N° Referencia:", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=20, pady=(4, 0))
+        entry_desc_dlg = ctk.CTkEntry(dialog, placeholder_text="Ej: Mantenimiento L3250 Ref: 8934", font=Theme.FONT_BODY)
+        entry_desc_dlg.pack(fill="x", padx=20, pady=2)
+
+        def _guardar():
+            monto_str = entry_monto_dlg.get().strip()
+            desc = entry_desc_dlg.get().strip()
+            if not monto_str:
+                messagebox.showwarning("Atención", "Por favor ingresa un monto válido.")
+                return
+            try:
+                monto = float(monto_str.replace(",", "."))
+                if monto <= 0:
+                    raise ValueError()
+            except ValueError:
+                messagebox.showerror("Error", "El monto debe ser un valor numérico positivo.")
+                return
+
+            tipo = seg_tipo_dlg.get()
+            metodo = combo_metodo_dlg.get()
+            categoria = combo_cat_dlg.get()
+
+            resp = self.agent.execute("record_transaction", {
+                "type": tipo,
+                "amount_usd": monto,
+                "method": metodo,
+                "category": categoria,
+                "description": desc or f"Registro de {tipo.lower()}"
+            })
+            if resp.success:
+                dialog.destroy()
+                self.actualizar_balance()
+                messagebox.showinfo("Éxito", resp.message)
+            else:
+                messagebox.showerror("Error", resp.message)
+
+        ctk.CTkButton(
+            dialog,
+            text="💾 Registrar en Libro Mayor",
+            font=Theme.FONT_BODY_BOLD,
+            fg_color=Theme.SUCCESS,
+            hover_color=Theme.SUCCESS_HOVER,
+            command=_guardar
+        ).pack(fill="x", padx=20, pady=(14, 16))
+
     def registrar_transaccion(self):
         monto_str = self.entry_monto.get().strip()
         desc = self.entry_desc.get().strip()
@@ -292,35 +383,124 @@ class AdminFinanzasView(ctk.CTkFrame):
         else:
             messagebox.showerror("Error", resp.message)
 
+    # ─── Helpers de período ───────────────────────────────────────────────────
+
+    _MESES_ES = [
+        "", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    ]
+
+    def _generar_opciones_periodo(self, ventana_meses: int = 24) -> list:
+        """Genera lista de períodos 'Mes YYYY' desde el mes actual hacia atrás."""
+        hoy = date.today()
+        opciones = []
+        for delta in range(ventana_meses):
+            # Retroceder mes a mes
+            m = hoy.month - delta
+            y = hoy.year
+            while m <= 0:
+                m += 12
+                y -= 1
+            opciones.append(f"{self._MESES_ES[m]} {y}")
+        return opciones
+
+    def _parse_periodo(self, texto: str):
+        """Convierte 'Octubre 2026' -> (2026, 10). Retorna None si falla."""
+        partes = texto.strip().split()
+        if len(partes) != 2:
+            return None
+        try:
+            mes_idx = self._MESES_ES.index(partes[0])
+            anio = int(partes[1])
+            return (anio, mes_idx)
+        except (ValueError, IndexError):
+            return None
+
+    def _on_cambio_periodo(self, seleccion: str):
+        """Callback del combo de período: actualiza estado y refresca vista."""
+        parsed = self._parse_periodo(seleccion)
+        if parsed:
+            self._periodo_seleccionado = parsed
+        self.actualizar_balance()
+
+    # ─── Balance y tabla ──────────────────────────────────────────────────────
+
     def actualizar_balance(self):
-        """Actualiza las tarjetas de totales y recarga la tabla contable."""
+        """Actualiza tarjetas de totales y tabla contable filtradas por período."""
         res = self.agent.execute("get_financial_summary", {})
-        if res.success:
-            d = res.data
-            rate = d.get("bcv_rate", 1.0)
-            self.lbl_bcv_rate.configure(text=f"Tasa BCV: {rate:,.2f} Bs/USD")
-            
-            # Mostrar Saldo Inicial
-            ini_usd = d.get("initial_balance_usd", 0.0)
-            ini_bs = d.get("initial_balance_bs", 0.0)
-            self.lbl_val_saldo_inicial.configure(text=f"${ini_usd:,.2f} | {ini_bs:,.2f} Bs")
+        if not res.success:
+            return
 
-            # Mostrar Totales
-            self.lbl_val_ingresos.configure(text=f"${d['total_income_usd']:,.2f} | {d['total_income_bs']:,.2f} Bs")
-            self.lbl_val_egresos.configure(text=f"${d['total_expense_usd']:,.2f} | {d['total_expense_bs']:,.2f} Bs")
-            self.lbl_val_balance.configure(text=f"${d['net_balance_usd']:,.2f} | {d['net_balance_bs']:,.2f} Bs")
+        d = res.data
+        rate = d.get("bcv_rate", 1.0)
+        self.lbl_bcv_rate.configure(text=f"Tasa BCV: {rate:,.2f} Bs/USD")
 
-            # Limpiar y rellenar tabla
-            for item in self.tree.get_children():
-                self.tree.delete(item)
+        # Saldo Inicial (global, no filtrado por período)
+        ini_usd = d.get("initial_balance_usd", 0.0)
+        ini_bs  = d.get("initial_balance_bs",  0.0)
+        self.lbl_val_saldo_inicial.configure(text=f"${ini_usd:,.2f} | {ini_bs:,.2f} Bs")
 
-            ledger = self.agent._load_ledger()
-            for r in reversed(ledger):
-                self.tree.insert("", "end", values=(
-                    r.get("date", ""),
-                    r.get("type", ""),
-                    f"${r.get('amount_usd', 0.0):,.2f}",
-                    f"{r.get('amount_bs', 0.0):,.2f} Bs",
-                    r.get("method", ""),
-                    r.get("description", "")
-                ))
+        # ── Filtrar ledger por el período seleccionado ──
+        year_sel, month_sel = self._periodo_seleccionado
+        ledger = self.agent._load_ledger()
+
+        registros_periodo = []
+        for r in ledger:
+            fecha_str = r.get("date", "")
+            try:
+                # Soporta formatos "YYYY-MM-DD HH:MM:SS" y "YYYY-MM-DD"
+                dt = datetime.strptime(fecha_str[:10], "%Y-%m-%d")
+                if dt.year == year_sel and dt.month == month_sel:
+                    registros_periodo.append(r)
+            except (ValueError, TypeError):
+                pass
+
+        # ── Helpers de clasificación: insensible a mayúsculas y sinónimos ──
+        def _es_ingreso(tipo: str) -> bool:
+            return tipo.strip().lower() in ("ingreso",)
+
+        def _es_gasto(tipo: str) -> bool:
+            return tipo.strip().lower() in ("gasto", "egreso")
+
+        # ── Recalcular totales del período ──
+        total_ing_usd = sum(r.get("amount_usd", 0.0) for r in registros_periodo if _es_ingreso(r.get("type", "")))
+        total_gst_usd = sum(r.get("amount_usd", 0.0) for r in registros_periodo if _es_gasto(r.get("type", "")))
+        net_usd       = ini_usd + total_ing_usd - total_gst_usd
+
+        total_ing_bs = sum(r.get("amount_bs", 0.0) for r in registros_periodo if _es_ingreso(r.get("type", "")))
+        total_gst_bs = sum(r.get("amount_bs", 0.0) for r in registros_periodo if _es_gasto(r.get("type", "")))
+        net_bs       = ini_bs + total_ing_bs - total_gst_bs
+
+        self.lbl_val_ingresos.configure(text=f"${total_ing_usd:,.2f} | {total_ing_bs:,.2f} Bs")
+        self.lbl_val_egresos.configure(text=f"${total_gst_usd:,.2f} | {total_gst_bs:,.2f} Bs")
+        self.lbl_val_balance.configure(text=f"${net_usd:,.2f} | {net_bs:,.2f} Bs")
+
+        # ── Etiqueta de período activo ──
+        nombre_mes = self._MESES_ES[month_sel]
+        n = len(registros_periodo)
+        self.lbl_periodo_activo.configure(
+            text=f"Mostrando {n} movimiento{'s' if n != 1 else ''} de {nombre_mes} {year_sel}"
+        )
+
+        # ── Poblar tabla ──
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+
+        for r in reversed(registros_periodo):
+            tipo      = r.get("type", "")
+            es_gasto  = _es_gasto(tipo)
+            tag       = "gasto" if es_gasto else "ingreso"
+            signo     = "-" if es_gasto else ""
+            usd_val   = r.get("amount_usd", 0.0)
+            bs_val    = r.get("amount_bs",  0.0)
+            self.tree.insert("", "end", tags=(tag,), values=(
+                r.get("date", ""),
+                tipo,
+                f"{signo}${usd_val:,.2f}",
+                f"{signo}{bs_val:,.2f} Bs",
+                r.get("method", ""),
+                r.get("description", "")
+            ))
+
+        self.tree.tag_configure("ingreso", foreground="#4ade80")
+        self.tree.tag_configure("gasto",   foreground="#f87171")

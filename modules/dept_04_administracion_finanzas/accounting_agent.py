@@ -226,11 +226,32 @@ class AccountingAgent(BaseAgent):
             return AgentResponse(success=False, message="No se encontró la imagen del comprobante.")
 
         prompt_vision = f"""
-Analiza este comprobante de pago bancario. Extrae la información en formato JSON estricto con estas llaves:
+Analiza este comprobante de pago bancario venezolano. Extrae la información en formato JSON estricto con estas llaves:
 1. "amount_number": El monto exacto reflejado en el comprobante en números (ej: 4.61 o 12500.00).
 2. "currency": La moneda explícita del ticket ("BS" o "USD").
-3. "bank_origin": El banco o método emisor (ej: Provincial, Banesco, Mercantil, Zelle, Binance).
-4. "ref_code": El número de referencia o confirmación.
+3. "bank_origin": El banco emisor. DEBES seguir estas reglas de clasificación de forma ESTRICTA:
+
+   === REGLAS DE CLASIFICACIÓN DE BANCO ORIGEN ===
+
+   BBVA Provincial - Clasifica como "BBVA Provincial" ÚNICAMENTE si detectas:
+      * Texto explícito "BBVA Provincial", "BBVA" o "Dinero Rápido BBVA Provincial".
+      * Encabezados de pago como "Pagar a Otros Bancos" o "Pagar a Mismo Banco".
+      * Etiquetas de campos: "Identificación:", "Concepto:", "Fecha:" y "Referencia:".
+      * Botones inferiores: "Compartir como imagen" o "Compartir como texto".
+
+   Banco Mercantil - Clasifica como "Banco Mercantil" ÚNICAMENTE si detectas:
+      * Encabezado de cuenta con asteriscos (ej. "Corriente *7434").
+      * Etiquetas exclusivas: "Monto disponible", "Monto anterior", "Centro origen", "Tipo de movimiento" o "Número de movimiento".
+      * Botón inferior con icono de triángulo o texto "Quiero".
+
+   REGLA DE ESTRICTA CERTEZA:
+      * Si NO encuentras ninguna palabra clave o etiqueta exclusiva de Provincial o Mercantil,
+        NO debes adivinar ni asumir ningún banco por defecto.
+      * En ese caso devuelve exactamente: "Banco Desconocido / Requiere Revisión".
+      * Para otros bancos identificados por nombre propio en el comprobante
+        (Banesco, BDV, Zelle, Binance, etc.), usa su nombre tal como aparece en la imagen.
+
+4. "ref_code": El número de referencia o confirmación (campo "Referencia" o "Número de movimiento").
 5. "transaction_type": "Egreso" (pago realizado) o "Ingreso" (pago recibido).
 
 Texto adicional del usuario: "{caption}"
@@ -379,32 +400,3 @@ Devuelve ÚNICAMENTE un JSON válido sin texto adicional ni bloques de markdown.
     def reconcile_crypto(self, payload: Dict[str, Any]) -> AgentResponse:
         """Concilia un pago realizado mediante Binance Pay."""
         ref_id = payload.get("ref_id", "")
-        amount_usd = float(payload.get("amount_usd", 0.0))
-        description = payload.get("description", "Pago recibido vía USDT")
-
-        veri = self.gateway_manager.verify_binance_payment(ref_id)
-        if veri.get("verified"):
-            trx_res = self.record_transaction({
-                "type": "Ingreso",
-                "amount_usd": amount_usd,
-                "currency": "USD",
-                "method": "Binance USDT",
-                "category": "Venta / Servicio Cripto",
-                "description": description,
-                "ref_code": ref_id
-            })
-            return AgentResponse(
-                success=True,
-                data={"verification": veri, "transaction": trx_res.data},
-                message=f"Pago USDT conciliado y registrado ({ref_id})."
-            )
-
-        return AgentResponse(success=False, message="No se pudo verificar el pago cripto.")
-
-    def create_payment_link(self, payload: Dict[str, Any]) -> AgentResponse:
-        """Genera un enlace de pago en Binance."""
-        order_id = payload.get("order_id", f"ORD-{int(time.time())}")
-        amount = float(payload.get("amount_usd", 0.0))
-        item_name = payload.get("item_name", "Servicio Técnico / Insumos")
-        res = self.gateway_manager.create_binance_order(order_id, amount, item_name)
-        return AgentResponse(success=True, data=res, message="Orden Binance Pay generada.")

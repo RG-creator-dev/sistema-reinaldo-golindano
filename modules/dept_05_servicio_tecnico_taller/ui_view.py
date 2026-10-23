@@ -190,8 +190,18 @@ class ServicioTecnicoView(ctk.CTkFrame):
         )
         btn_cambiar_estado.pack(side="right")
 
+        btn_archivar = ctk.CTkButton(
+            top_ctrl,
+            text="🗂️ Archivar Órdenes Cerradas",
+            font=Theme.FONT_SMALL,
+            fg_color="#6c757d",
+            hover_color="#5a6268",
+            command=self._archivar_ordenes_ui
+        )
+        btn_archivar.pack(side="right", padx=(0, 8))
+
         scroll = ttk.Scrollbar(right_box, orient="vertical")
-        cols = ("id", "fecha", "cliente", "equipo", "costo", "estado")
+        cols = ("id", "fecha", "cliente", "equipo", "falla", "costo", "estado")
         self.tree_jobs = ttk.Treeview(right_box, columns=cols, show="headings", yscrollcommand=scroll.set)
         scroll.config(command=self.tree_jobs.yview)
 
@@ -199,6 +209,7 @@ class ServicioTecnicoView(ctk.CTkFrame):
         self.tree_jobs.heading("fecha", text="Fecha")
         self.tree_jobs.heading("cliente", text="Cliente")
         self.tree_jobs.heading("equipo", text="Equipo")
+        self.tree_jobs.heading("falla", text="Falla Reportada")
         self.tree_jobs.heading("costo", text="Costo ($)")
         self.tree_jobs.heading("estado", text="Estado")
 
@@ -206,11 +217,16 @@ class ServicioTecnicoView(ctk.CTkFrame):
         self.tree_jobs.column("fecha", width=115, anchor="center")
         self.tree_jobs.column("cliente", width=120)
         self.tree_jobs.column("equipo", width=130)
+        self.tree_jobs.column("falla", width=160)
         self.tree_jobs.column("costo", width=70, anchor="e")
         self.tree_jobs.column("estado", width=120, anchor="center")
 
         self.tree_jobs.pack(side="left", fill="both", expand=True, padx=(15, 0), pady=(0, 15))
         scroll.pack(side="right", fill="y", padx=(0, 15), pady=(0, 15))
+
+        # Tags de color condicional para la columna Estado
+        self.tree_jobs.tag_configure("estado_rojo", foreground="#dc3545")
+        self.tree_jobs.tag_configure("estado_verde", foreground="#28a745")
 
     def _registrar_orden_ui(self):
         cli = self.entry_job_client.get().strip()
@@ -264,11 +280,34 @@ class ServicioTecnicoView(ctk.CTkFrame):
 
         jobs = self.agent._load_workshop_jobs()
         for j in reversed(jobs):
+            estado = j.get("status", "")
+            # Determinar tag de color según el estado
+            if any(kw in estado for kw in ("Banco", "Espera")):
+                tag = "estado_rojo"
+            elif any(kw in estado for kw in ("Reparado", "Listo")):
+                tag = "estado_verde"
+            else:
+                tag = ""
+
             self.tree_jobs.insert("", "end", values=(
                 j.get("job_id", ""),
                 j.get("created_at", ""),
                 j.get("client_name", ""),
                 j.get("equipment", ""),
+                j.get("symptoms", ""),
                 f"${float(j.get('estimated_cost_usd', 0.0)):,.2f}",
-                j.get("status", "")
-            ))
+                estado
+            ), tags=(tag,) if tag else ())
+
+    def _archivar_ordenes_ui(self):
+        """Conecta el botón con archivar_ordenes_cerradas del agente y refresca la tabla."""
+        resp = self.agent.execute("archive_old_jobs", {})
+        if resp.success:
+            self._cargar_ordenes_taller()
+            n = resp.data.get("archived_count", 0)
+            if n == 0:
+                messagebox.showinfo("Sin cambios", "No hay órdenes cerradas (Entregado/Cerrado) para archivar.")
+            else:
+                messagebox.showinfo("Archivo exitoso", f"Se archivaron {n} órdenes al histórico mensual.\nLa tabla ahora muestra solo equipos en proceso.")
+        else:
+            messagebox.showerror("Error", resp.message)
