@@ -298,5 +298,17 @@
     "method": "Provincial",
     "ref_code": "10558",
     "type": "Egreso"
+  },
+  {
+    "amount_bs": 3767.0,
+    "amount_usd": 4.25,
+    "bcv_rate": 886.2271,
+    "category": "Sueldo",
+    "date": "2026-10-23 10:09:01",
+    "description": "Pago sueldo",
+    "id": "TRX-1792750141192",
+    "method": "Banco Mercantil",
+    "ref_code": "10559",
+    "type": "Egreso"
   }
 ]

@@ -246,5 +246,63 @@
     "tax_usd": 54.4,
     "total_bs": 347812.25,
     "total_usd": 394.4
+  },
+  {
+    "bcv_rate": 886.2271,
+    "client_name": "Alveca",
+    "client_phone": "N/A",
+    "client_rif": "N/A",
+    "date": "2026-10-23 10:13:07",
+    "items": [
+      {
+        "description": "Servicio de mantenimiento preventivo y correctivo",
+        "price_usd": 40.0,
+        "qty": 1,
+        "specs": "Impresora HP LaserJet Pro P1606dn (incluye limpieza general y lubricación de sistema de tracción)"
+      },
+      {
+        "description": "Film de fusor (Fuser Film Sleeve)",
+        "price_usd": 15.0,
+        "qty": 1,
+        "specs": "Compatible con fusor HP LaserJet P1606 / M1536"
+      }
+    ],
+    "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1011_20261023_061354.pdf",
+    "quote_id": "COT-1011",
+    "status": "Emitida",
+    "subtotal_usd": 55.0,
+    "tax_percent": 16.0,
+    "tax_usd": 8.8,
+    "total_bs": 56541.29,
+    "total_usd": 63.8
+  },
+  {
+    "bcv_rate": 886.2271,
+    "client_name": "Servi plagas",
+    "client_phone": "N/A",
+    "client_rif": "N/A",
+    "date": "2026-10-23 13:42:39",
+    "items": [
+      {
+        "description": "Servicio de mantenimiento preventivo y correctivo",
+        "price_usd": 40.0,
+        "qty": 1,
+        "specs": "Para impresora/fotocopiadora Canon imageRUNNER 1025"
+      },
+      {
+        "description": "Kit de cilindro (Drum Kit)",
+        "price_usd": 25.0,
+        "qty": 1,
+        "specs": "Modelo GPR-22 / Canon"
+      }
+    ],
+    "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1012_20261024_183117.pdf",
+    "quote_id": "COT-1012",
+    "status": "Emitida",
+    "subtotal_usd": 65.0,
+    "tax_percent": 16.0,
+    "tax_usd": 10.4,
+    "total_bs": 66821.52,
+    "total_usd": 75.4
   }
 ]

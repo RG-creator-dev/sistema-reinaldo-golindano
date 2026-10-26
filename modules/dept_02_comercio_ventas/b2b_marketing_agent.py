@@ -218,7 +218,8 @@ Devuelve ÚNICAMENTE el texto del copy. Sin explicaciones, sin prefijos, sin blo
         if task_type == "generate_weekly_batch":
             id_inicio = payload.get("siguiente_id", 1)
             historial = payload.get("historial_copys", [])
-            return self.generar_lote_semanal(id_inicio=id_inicio, historial_copys=historial)
+            categoria = payload.get("categoria_filtro")
+            return self.generar_lote_semanal(id_inicio=id_inicio, historial_copys=historial, categoria_filtro=categoria)
         elif task_type == "generate_campaign_copy":
             tema = payload.get("topic", "Auditoría de flota de impresión en Carabobo")
             canal = payload.get("channel", "WhatsApp / LinkedIn Empresarial")
@@ -233,7 +234,7 @@ Devuelve ÚNICAMENTE el texto del copy. Sin explicaciones, sin prefijos, sin blo
     # ------------------------------------------------------------------
 
     def generar_lote_semanal(
-        self, id_inicio: int = 1, historial_copys: list = None
+        self, id_inicio: int = 1, historial_copys: list = None, categoria_filtro: Optional[str] = None
     ) -> AgentResponse:
         """
         Genera 3 publicaciones B2B, sube a ImgBB y hace append_row directo en Google Sheets.
@@ -260,12 +261,26 @@ Devuelve ÚNICAMENTE el texto del copy. Sin explicaciones, sin prefijos, sin blo
             if primera_linea:
                 historial_titulos.append(primera_linea)
 
-        # Seleccionar 3 temas únicos del banco utilizando el ID real de la nube
-        temas_del_lote = seleccionar_temas_para_lote(
-            siguiente_id=id_correlativo,
-            textos_historicos=historial_copys,
-            cantidad=3,
-        )
+        # Seleccionar 3 temas únicos del banco utilizando el ID real de la nube (con filtro si aplica)
+        if categoria_filtro and categoria_filtro not in ("Todas", "Todas las Categorías (Rotación Automática)", "Todas las categorías"):
+            temas_filtrados = [t for t in BANCO_TEMAS_B2B if t.get("categoria_imagen") == categoria_filtro]
+            if len(temas_filtrados) >= 3:
+                idx = (id_correlativo - 1) % len(temas_filtrados)
+                temas_del_lote = []
+                for step in range(3):
+                    temas_del_lote.append(temas_filtrados[(idx + step) % len(temas_filtrados)])
+            else:
+                temas_del_lote = seleccionar_temas_para_lote(
+                    siguiente_id=id_correlativo,
+                    textos_historicos=historial_copys,
+                    cantidad=3,
+                )
+        else:
+            temas_del_lote = seleccionar_temas_para_lote(
+                siguiente_id=id_correlativo,
+                textos_historicos=historial_copys,
+                cantidad=3,
+            )
 
         fechas = self.calcular_proximas_fechas_l_m_v(3)
         dias_semana = ["Lunes", "Miércoles", "Viernes"]
@@ -288,7 +303,9 @@ Devuelve ÚNICAMENTE el texto del copy. Sin explicaciones, sin prefijos, sin blo
                 primera_linea = copy_text.split("\n")[0].strip()[:100]
                 historial_titulos.append(primera_linea)
 
-                cat = tema["categoria_imagen"]
+                cat = tema.get("categoria_imagen", "Reparaciones")
+                if categoria_filtro and categoria_filtro in self.MAPEO_CARPETAS:
+                    cat = categoria_filtro
                 foto = self.seleccionar_foto_real(cat)
                 
                 # Subir a ImgBB

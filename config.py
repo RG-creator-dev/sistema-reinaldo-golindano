@@ -31,6 +31,7 @@ class SystemConfig:
     PURCHASES_FILE = os.path.join(DATA_DIR, "compras.json")
     WORKSHOP_FILE = os.path.join(DATA_DIR, "servicios_taller.json")
     MOVEMENTS_FILE = os.path.join(DATA_DIR, "movimientos.json")
+    CXC_CXP_FILE = os.path.join(DATA_DIR, "cxc_cxp.json")
     
     # Rutas de Recursos Externos (Solo Lectura)
     RUTA_PUBLICIDAD_IMAGENES = r"C:\Users\TRADING_PRO\Desktop\publicidad\Img de Gemini"
@@ -78,7 +79,7 @@ class SystemConfig:
             os.makedirs(directory, exist_ok=True)
             
         # Asegurar archivos JSON vacíos sin datos basura
-        for file_path in [cls.QUOTES_FILE, cls.LEDGER_FILE, cls.FINANCES_FILE, cls.PURCHASES_FILE, cls.WORKSHOP_FILE, cls.MOVEMENTS_FILE]:
+        for file_path in [cls.QUOTES_FILE, cls.LEDGER_FILE, cls.FINANCES_FILE, cls.PURCHASES_FILE, cls.WORKSHOP_FILE, cls.MOVEMENTS_FILE, cls.CXC_CXP_FILE]:
             if not os.path.exists(file_path):
                 with open(file_path, "w", encoding="utf-8") as f:
                     f.write("[]")

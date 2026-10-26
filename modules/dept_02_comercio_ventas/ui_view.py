@@ -1,4 +1,4 @@
-"""
+﻿"""
 =============================================================================
 SISTEMA DE GESTIÓN DE INVERSIONES REINALDO GOLINDANO
 Departamento: COMERCIO Y VENTAS
@@ -683,13 +683,78 @@ class ComercioVentasView(ctk.CTkFrame):
     def _build_tab_marketing(self):
         tab = self.tab_marketing
 
-        top_frame = ctk.CTkFrame(tab, fg_color=Theme.CARD_BG, corner_radius=10, border_width=1, border_color=Theme.CARD_BORDER)
-        top_frame.pack(fill="x", padx=10, pady=10)
+        # --- Panel 1: Orquestador B2B (Generador Automático Semanal) ---
+        orq_frame = ctk.CTkFrame(tab, fg_color=Theme.CARD_BG, corner_radius=10, border_width=1, border_color=Theme.CARD_BORDER)
+        orq_frame.pack(fill="x", padx=10, pady=10)
 
-        ctk.CTkLabel(top_frame, text="Estrategia y Propuestas Comerciales B2B (Carabobo)", font=Theme.FONT_SUBTITLE, text_color=Theme.TEXT_MAIN).pack(anchor="w", padx=15, pady=(10, 5))
-        ctk.CTkLabel(top_frame, text="Generador automatizado de propuestas corporativas para clínicas, universidades y grandes empresas.", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=15, pady=(0, 10))
+        ctk.CTkLabel(
+            orq_frame,
+            text="🚀 Generador Automático B2B — 3 Publicaciones Semanales (Lunes · Miércoles · Viernes) → Google Sheets",
+            font=Theme.FONT_SUBTITLE,
+            text_color=Theme.TEXT_MAIN
+        ).pack(anchor="w", padx=15, pady=(10, 3))
+        ctk.CTkLabel(
+            orq_frame,
+            text="Genera copys con fotos reales e inserta directamente en Matriz_Contenido_Marketing_V3. Filtrar por categoría es opcional.",
+            font=Theme.FONT_SMALL,
+            text_color=Theme.TEXT_MUTED
+        ).pack(anchor="w", padx=15, pady=(0, 8))
 
-        grid_btn = ctk.CTkFrame(top_frame, fg_color="transparent")
+        controls_row = ctk.CTkFrame(orq_frame, fg_color="transparent")
+        controls_row.pack(fill="x", padx=15, pady=(0, 15))
+
+        ctk.CTkLabel(
+            controls_row,
+            text="Filtro por Categoría:",
+            font=Theme.FONT_BODY_BOLD,
+            text_color=Theme.TEXT_MUTED
+        ).pack(side="left", padx=(0, 8))
+
+        _CATS_B2B = [
+            "Todas las Categorías (Rotación Automática)",
+            "Epson EcoTank",
+            "Fusor",
+            "Modulo de Imagen",
+            "Reparaciones",
+            "Tiqueras Epson",
+            "Toner",
+        ]
+        self.combo_b2b_cat = ctk.CTkComboBox(
+            controls_row,
+            values=_CATS_B2B,
+            width=265,
+            state="readonly",
+            font=Theme.FONT_BODY,
+            fg_color=Theme.INPUT_BG,
+            border_color=Theme.CARD_BORDER,
+            button_color=Theme.PRIMARY,
+            dropdown_fg_color=Theme.CARD_BG,
+        )
+        self.combo_b2b_cat.set(_CATS_B2B[0])
+        self.combo_b2b_cat.pack(side="left", padx=(0, 12))
+
+        self.btn_generar_b2b = ctk.CTkButton(
+            controls_row,
+            text="⚡ Generar 3 Publicaciones Semanales (Lun / Mié / Vie)",
+            font=Theme.FONT_BODY_BOLD,
+            fg_color=Theme.PURPLE,
+            hover_color=Theme.PURPLE_HOVER,
+            command=self._ejecutar_lote_semanal_b2b
+        )
+        self.btn_generar_b2b.pack(side="left")
+
+        # --- Panel 2: Propuestas Corporativas Personalizadas ---
+        prop_frame = ctk.CTkFrame(tab, fg_color=Theme.CARD_BG, corner_radius=10, border_width=1, border_color=Theme.CARD_BORDER)
+        prop_frame.pack(fill="x", padx=10, pady=(0, 8))
+
+        ctk.CTkLabel(
+            prop_frame,
+            text="📋 Propuestas Corporativas Personalizadas",
+            font=Theme.FONT_SUBTITLE,
+            text_color=Theme.TEXT_MAIN
+        ).pack(anchor="w", padx=15, pady=(10, 5))
+
+        grid_btn = ctk.CTkFrame(prop_frame, fg_color="transparent")
         grid_btn.pack(fill="x", padx=15, pady=(0, 15))
 
         ctk.CTkButton(
@@ -703,34 +768,103 @@ class ComercioVentasView(ctk.CTkFrame):
 
         ctk.CTkButton(
             grid_btn,
-            text="🎓 Propuesta Universidad Arturo Michelena",
+            text="🎓 Propuesta Universidad Arturo Michelena (UAM)",
             font=Theme.FONT_BODY_BOLD,
             fg_color=Theme.SUCCESS,
             hover_color=Theme.SUCCESS_HOVER,
             command=lambda: self._generar_propuesta_b2b("Universidad Arturo Michelena (UAM)")
         ).pack(side="left", padx=10)
 
-        # Bitácora de Marketing
+        # --- Panel 3: Bitácora de Actividad B2B ---
         log_mkt = ctk.CTkFrame(tab, fg_color=Theme.CARD_BG, corner_radius=10, border_width=1, border_color=Theme.CARD_BORDER)
         log_mkt.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-        ctk.CTkLabel(log_mkt, text="Resultado de Generación B2B", font=Theme.FONT_SUBTITLE, text_color=Theme.TEXT_MAIN).pack(anchor="w", padx=15, pady=(10, 5))
+        ctk.CTkLabel(
+            log_mkt,
+            text="📝 Resultado de Generación B2B / Bitácora de Actividad",
+            font=Theme.FONT_SUBTITLE,
+            text_color=Theme.TEXT_MAIN
+        ).pack(anchor="w", padx=15, pady=(10, 5))
 
         self.txt_mkt_log = ctk.CTkTextbox(log_mkt, font=Theme.FONT_CODE, fg_color=Theme.INPUT_BG)
         self.txt_mkt_log.pack(fill="both", expand=True, padx=15, pady=(0, 15))
-        self.txt_mkt_log.insert("1.0", f"[{datetime.datetime.now().strftime('%H:%M:%S সিস্ট')}] Módulo B2B listo para generar propuestas comerciales adaptadas.\n")
+        self.txt_mkt_log.insert(
+            "1.0",
+            f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Módulo B2B listo. "
+            "Google Sheets: Matriz_Contenido_Marketing_V3. Usa el botón morado para generar el lote semanal.\n"
+        )
 
+    # ─── Orquestador B2B: Generación de Lote Semanal ────────────────────────
+    def _ejecutar_lote_semanal_b2b(self):
+        """Lanza la generación de 3 publicaciones semanales en un hilo separado."""
+        cat_raw = self.combo_b2b_cat.get()
+        cat_filtro = None if "Rotación Automática" in cat_raw else cat_raw
+
+        self.btn_generar_b2b.configure(state="disabled", text="⏳ Generando publicaciones…")
+        ts = datetime.datetime.now().strftime("%H:%M:%S")
+        self.txt_mkt_log.insert("end", f"\n[{ts}] ▶ Iniciando generación B2B (Filtro: {cat_raw})…\n")
+        self.txt_mkt_log.see("end")
+
+        def _task():
+            res = self.marketing_agent.execute("generate_weekly_batch", {
+                "historial_copys": [],
+                "categoria_filtro": cat_filtro,
+            })
+            self.after(0, self._render_lote_b2b, res)
+
+        threading.Thread(target=_task, daemon=True).start()
+
+    def _render_lote_b2b(self, res):
+        """Actualiza la bitácora con el resultado del lote semanal."""
+        self.btn_generar_b2b.configure(
+            state="normal",
+            text="⚡ Generar 3 Publicaciones Semanales (Lun / Mié / Vie)"
+        )
+        ts = datetime.datetime.now().strftime("%H:%M:%S")
+        if res.success:
+            lote = res.data if isinstance(res.data, list) else []
+            self.txt_mkt_log.insert("end", f"[{ts}] ✅ {res.message}\n\n")
+            for pub in lote:
+                copy_preview = str(pub.get("copy", ""))[:300]
+                ellipsis = "…" if len(str(pub.get("copy", ""))) > 300 else ""
+                self.txt_mkt_log.insert(
+                    "end",
+                    f"─── ID: {pub.get('banco_tema_id')} │ {pub.get('dia_semana')} {pub.get('fecha_programada')} ───\n"
+                    f"  Pilar:     {pub.get('pilar')}\n"
+                    f"  Categoría: {pub.get('categoria')}\n"
+                    f"  Foto:      {pub.get('foto_asignada')} → {pub.get('url_imagen', '—')}\n"
+                    f"  Copy:\n{copy_preview}{ellipsis}\n\n"
+                )
+            self.txt_mkt_log.see("end")
+            messagebox.showinfo("Campaña B2B Generada ✅", f"{res.message}")
+        else:
+            self.txt_mkt_log.insert("end", f"[{ts}] ❌ Error: {res.message}\n")
+            self.txt_mkt_log.see("end")
+            messagebox.showerror("Error Generador B2B", res.message)
+
+    # ─── Propuestas Corporativas Personalizadas ──────────────────────────────
     def _generar_propuesta_b2b(self, target_client: str):
+        """Genera una propuesta corporativa para el cliente indicado."""
         try:
-            self.txt_mkt_log.insert("end", f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Generando propuesta formal para {target_client}...\n")
-            res = self.marketing_agent.generar_propuesta(target_client)
-            if res.get("success"):
-                pdf_p = res.get("pdf_path")
-                self.txt_mkt_log.insert("end", f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ¡Propuesta generada con éxito!\nArchivo: {pdf_p}\n\n")
+            ts = datetime.datetime.now().strftime("%H:%M:%S")
+            self.txt_mkt_log.insert("end", f"[{ts}] Generando propuesta formal para {target_client}…\n")
+            self.txt_mkt_log.see("end")
+
+            res = self.marketing_agent.execute("generate_proposal", {"client_name": target_client})
+            ts2 = datetime.datetime.now().strftime("%H:%M:%S")
+            if res.success:
+                pdf_p = res.data.get("pdf_path") if isinstance(res.data, dict) else None
+                self.txt_mkt_log.insert("end", f"[{ts2}] ✅ Propuesta generada correctamente.\n\n")
                 self.txt_mkt_log.see("end")
-                if messagebox.askyesno("Propuesta B2B Lista", f"Propuesta para {target_client} creada exitosamente.\n\n¿Deseas abrir el PDF ahora?"):
-                    if pdf_p and os.path.exists(pdf_p):
+                if pdf_p and os.path.exists(pdf_p):
+                    if messagebox.askyesno("Propuesta B2B Lista", f"Propuesta para {target_client} creada.\n\n¿Abrir el PDF ahora?"):
                         os.startfile(pdf_p)
+                else:
+                    messagebox.showinfo("Propuesta Generada", f"Propuesta para {target_client} completada.")
             else:
-                self.txt_mkt_log.insert("end", f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Error: {res.get('message')}\n\n")
+                self.txt_mkt_log.insert("end", f"[{ts2}] ❌ Error: {res.message}\n\n")
+                self.txt_mkt_log.see("end")
+                messagebox.showerror("Error Propuesta B2B", res.message)
         except Exception as e:
-            self.txt_mkt_log.insert("end", f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Excepción crítica: {e}\n\n")
+            ts_e = datetime.datetime.now().strftime("%H:%M:%S")
+            self.txt_mkt_log.insert("end", f"[{ts_e}] ⚠️ Excepción crítica: {e}\n\n")
+            self.txt_mkt_log.see("end")

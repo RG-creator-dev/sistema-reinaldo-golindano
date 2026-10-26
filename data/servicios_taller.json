@@ -8,7 +8,8 @@
     "symptoms": "Partes claras en la impresión",
     "estimated_cost_usd": 30.0,
     "status": "Reparado - Listo para Entrega",
-    "updated_at": "2026-10-17 05:13:14"
+    "updated_at": "2026-10-25 14:16:09",
+    "status_style": "color: #28a745; font-weight: bold;"
   },
   {
     "job_id": "ST-93958",
@@ -18,7 +19,9 @@
     "equipment": "Canon IR1025",
     "symptoms": "Claridad en la impresión",
     "estimated_cost_usd": 30.0,
-    "status": "En Banco de Prueba"
+    "status": "Reparado - Listo para Entrega",
+    "status_style": "color: #28a745; font-weight: bold;",
+    "updated_at": "2026-10-25 14:15:28"
   },
   {
     "job_id": "ST-43033",
@@ -28,8 +31,9 @@
     "equipment": "Epson l210",
     "symptoms": "Franjas blancas horizontales",
     "estimated_cost_usd": 30.0,
-    "status": "En Banco de Prueba",
-    "status_style": "color: #dc3545; font-weight: bold;"
+    "status": "Reparado - Listo para Entrega",
+    "status_style": "color: #28a745; font-weight: bold;",
+    "updated_at": "2026-10-25 14:38:01"
   },
   {
     "job_id": "ST-43131",
@@ -39,7 +43,8 @@
     "equipment": "Epson l4160",
     "symptoms": "Impresión en blanco",
     "estimated_cost_usd": 40.0,
-    "status": "En Banco de Prueba",
-    "status_style": "color: #dc3545; font-weight: bold;"
+    "status": "Reparado - Listo para Entrega",
+    "status_style": "color: #28a745; font-weight: bold;",
+    "updated_at": "2026-10-25 14:37:49"
   }
 ]
