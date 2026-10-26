@@ -35,7 +35,7 @@ supply_agent = SupplyAuditAgent(web_scraper=web_scraper)
 def background_director_scheduler():
     """
     Hilo en segundo plano para ejecutar la rutina autónoma del Director General.
-    Configurado temporalmente para dispararse hoy a las 8:20 a.m. (hora de Venezuela).
+    Configurado temporalmente para dispararse hoy a las 8:35 a.m. (hora de Venezuela).
     """
     app_logger.info("[BackgroundScheduler] Hilo monitor de Dirección General iniciado correctamente.")
     orchestrator = OrchestratorAgent()
@@ -46,9 +46,9 @@ def background_director_scheduler():
         try:
             now = datetime.now(VENEZUELA_TZ)
             
-            # Condición para la prueba: Hora 8, Minuto 20
-            if now.hour == 8 and now.minute == 20 and not test_executed_today:
-                app_logger.info("[Director General] Ejecutando rutina autónoma matutina (Prueba 8:20 AM): Auditoría + B2B...")
+            # Condición para la prueba: Hora 8, Minuto 35
+            if now.hour == 8 and now.minute == 35 and not test_executed_today:
+                app_logger.info("[Director General] Ejecutando rutina autónoma matutina (Prueba 8:35 AM): Auditoría + B2B...")
                 
                 # 1. Fase de Operaciones y Auditoría Diaria (CxC y Libro Mayor)
                 res_audit = orchestrator.execute("daily_autonomous_scan", {})
@@ -61,7 +61,7 @@ def background_director_scheduler():
                 test_executed_today = True
                 time.sleep(61)  # Evita múltiples ejecuciones en el mismo minuto
             
-            if now.minute != 20:
+            if now.minute != 35:
                 test_executed_today = False
                 
             time.sleep(30)  # Revisa el reloj cada 30 segundos
