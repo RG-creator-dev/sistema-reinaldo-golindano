@@ -19,7 +19,7 @@ from core.logger import app_logger
 from modules.dept_04_administracion_finanzas.accounting_agent import AccountingAgent
 from modules.dept_03_compras_procura.web_scraper import GlobalWebScraper
 from modules.dept_03_compras_procura.supply_audit_agent import SupplyAuditAgent
-from modules.dept_00_direccion_general.orchestrator_agent import OrchestratorAgent
+from modules.dept_01_direccion_general.orchestrator_agent import OrchestratorAgent
 
 # Inicializar aplicación Flask
 app = Flask(__name__)
@@ -35,21 +35,20 @@ supply_agent = SupplyAuditAgent(web_scraper=web_scraper)
 def background_director_scheduler():
     """
     Hilo en segundo plano para ejecutar la rutina autónoma del Director General.
-    Configurado temporalmente para dispararse hoy a las 8:15 a.m. (hora de Venezuela).
+    Configurado temporalmente para dispararse hoy a las 8:20 a.m. (hora de Venezuela).
     """
     app_logger.info("[BackgroundScheduler] Hilo monitor de Dirección General iniciado correctamente.")
     orchestrator = OrchestratorAgent()
     
-    # Bandera para asegurar que la prueba de las 8:15 AM se ejecute una sola vez en este arranque
     test_executed_today = False
     
     while True:
         try:
             now = datetime.now(VENEZUELA_TZ)
             
-            # Condición para la prueba: Hora 8, Minuto 15
-            if now.hour == 8 and now.minute == 15 and not test_executed_today:
-                app_logger.info("[Director General] Ejecutando rutina autónoma matutina (Prueba 8:15 AM): Auditoría + B2B...")
+            # Condición para la prueba: Hora 8, Minuto 20
+            if now.hour == 8 and now.minute == 20 and not test_executed_today:
+                app_logger.info("[Director General] Ejecutando rutina autónoma matutina (Prueba 8:20 AM): Auditoría + B2B...")
                 
                 # 1. Fase de Operaciones y Auditoría Diaria (CxC y Libro Mayor)
                 res_audit = orchestrator.execute("daily_autonomous_scan", {})
@@ -62,8 +61,7 @@ def background_director_scheduler():
                 test_executed_today = True
                 time.sleep(61)  # Evita múltiples ejecuciones en el mismo minuto
             
-            # Restablecer la bandera al cambiar de minuto o hora para futuras ejecuciones diarias
-            if now.minute != 15:
+            if now.minute != 20:
                 test_executed_today = False
                 
             time.sleep(30)  # Revisa el reloj cada 30 segundos
@@ -222,9 +220,7 @@ def api_status():
 @app.route("/api/sync", methods=["GET", "POST", "OPTIONS"])
 @app.route("/api/data", methods=["GET", "POST", "OPTIONS"])
 def api_sync():
-    """
-    Endpoint principal de sincronización bidireccional (Pull y Push).
-    """
+    """Endpoint principal de sincronización bidireccional (Pull y Push)."""
     if request.method == "OPTIONS":
         return make_response("", 200)
 
