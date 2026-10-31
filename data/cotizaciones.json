@@ -1,1 +1,251 @@
-[] 
+[
+  {
+    "bcv_rate": 887.302,
+    "client_name": "Encenso",
+    "client_phone": "N/A",
+    "client_rif": "N/A",
+    "date": "2026-10-27 15:23:29",
+    "items": [
+      {
+        "description": "Juego de tintas Epson T504",
+        "price_usd": 15.0,
+        "qty": 1,
+        "specs": "Pack de 4 colores (Cyan, Magenta, Yellow, Black), compatible con Epson EcoTank L4150/L4160/L6160/L6170/L6190"
+      },
+      {
+        "description": "Tinta negra Epson T504",
+        "price_usd": 5.0,
+        "qty": 1,
+        "specs": "Botella de tinta negra (Black), compatible con Epson EcoTank L4150/L4160/L6160/L6170/L6190"
+      },
+      {
+        "description": "Cartucho de tóner Samsung MLT-D111S",
+        "price_usd": 25.0,
+        "qty": 1,
+        "specs": "Tóner monocrómico negro, compatible con Samsung Xpress M2020/M2022/M2070"
+      },
+      {
+        "description": "Cartucho de tóner Canon CRG-127",
+        "price_usd": 20.0,
+        "qty": 1,
+        "specs": "Tóner negro de alto rendimiento, compatible con Canon imageCLASS LBP6650dn/MF8380Cdw/MF8580Cdw"
+      }
+    ],
+    "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1001_20261028_071713.pdf",
+    "quote_id": "COT-1001",
+    "status": "Emitida",
+    "subtotal_usd": 65.0,
+    "tax_percent": 16.0,
+    "tax_usd": 10.4,
+    "total_bs": 66902.57,
+    "total_usd": 75.4
+  },
+  {
+    "bcv_rate": 887.302,
+    "client_name": "Ascenso 2011",
+    "client_phone": "N/A",
+    "client_rif": "N/A",
+    "date": "2026-10-27 15:26:15",
+    "items": [
+      {
+        "description": "Juego de tintas Epson T504 (4 colores)",
+        "price_usd": 15.0,
+        "qty": 1,
+        "specs": "Pack de botellas de tinta CMYK para impresoras Epson EcoTank L4150, L4160, L6160, L6170, L6190"
+      },
+      {
+        "description": "Tinta negra Epson T504",
+        "price_usd": 5.0,
+        "qty": 1,
+        "specs": "Botella de tinta negra individual para impresoras Epson EcoTank L4150, L4160, L6160, L6170, L6190"
+      },
+      {
+        "description": "Cartucho de tóner Samsung MLT-D111S",
+        "price_usd": 25.0,
+        "qty": 1,
+        "specs": "Tóner genérico compatible con impresoras Samsung Xpress SL-M2020, SL-M2022, SL-M2070"
+      },
+      {
+        "description": "Cartucho de tóner Canon 127 (CRG-127)",
+        "price_usd": 20.0,
+        "qty": 1,
+        "specs": "Tóner genérico compatible con Canon imageCLASS LBP6300dn, LBP6650dn, MF5850dn, MF5880dn, MF5950dw, MF5960dn"
+      }
+    ],
+    "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1002_20261028_071713.pdf",
+    "quote_id": "COT-1002",
+    "status": "Emitida",
+    "subtotal_usd": 65.0,
+    "tax_percent": 16.0,
+    "tax_usd": 10.4,
+    "total_bs": 66902.57,
+    "total_usd": 75.4
+  },
+  {
+    "bcv_rate": 888.8909,
+    "client_name": "Mundo Total Huacara",
+    "client_phone": "N/A",
+    "client_rif": "N/A",
+    "date": "2026-10-29 12:53:46",
+    "items": [
+      {
+        "description": "Cartucho de tóner Canon 137",
+        "price_usd": 20.0,
+        "qty": 1,
+        "specs": "Compatibilidad con impresoras Canon imageCLASS MF4770 / Serie 4770"
+      }
+    ],
+    "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1003_20261031_061134.pdf",
+    "quote_id": "COT-1003",
+    "status": "Emitida",
+    "subtotal_usd": 20.0,
+    "tax_percent": 16.0,
+    "tax_usd": 3.2,
+    "total_bs": 20622.27,
+    "total_usd": 23.2
+  },
+  {
+    "bcv_rate": 888.8909,
+    "client_name": "Consumidor Final",
+    "client_phone": "N/A",
+    "client_rif": "N/A",
+    "date": "2026-10-29 13:03:06",
+    "items": [
+      {
+        "description": "Cartucho de Tóner Canon 137",
+        "price_usd": 20.0,
+        "qty": 1,
+        "specs": "Rendimiento estimado de 2.400 impresiones (cobertura al 5%), compatible con serie Canon ImageCLASS LBP151dw / MF210 / MF220 / MF230 / MF240"
+      }
+    ],
+    "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1004_20261031_061134.pdf",
+    "quote_id": "COT-1004",
+    "status": "Emitida",
+    "subtotal_usd": 20.0,
+    "tax_percent": 16.0,
+    "tax_usd": 3.2,
+    "total_bs": 20622.27,
+    "total_usd": 23.2
+  },
+  {
+    "bcv_rate": 888.8909,
+    "client_name": "Mundo Total Huacara",
+    "client_phone": "N/A",
+    "client_rif": "N/A",
+    "date": "2026-10-29 13:04:19",
+    "items": [
+      {
+        "description": "Cartucho de Tóner Canon 137 (CRG-137)",
+        "price_usd": 20.0,
+        "qty": 1,
+        "specs": "Rendimiento aproximado: 2.400 impresiones (al 5% de cobertura). Compatible con serie Canon imageCLASS MF211, MF212w, MF216n, MF217w, MF227dw, MF229dw, MF232w, MF244dw, MF247dw, MF249dw."
+      }
+    ],
+    "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1005_20261031_061134.pdf",
+    "quote_id": "COT-1005",
+    "status": "Emitida",
+    "subtotal_usd": 20.0,
+    "tax_percent": 16.0,
+    "tax_usd": 3.2,
+    "total_bs": 20622.27,
+    "total_usd": 23.2
+  },
+  {
+    "bcv_rate": 888.8909,
+    "client_name": "Mundo Total",
+    "client_phone": "N/A",
+    "client_rif": "N/A",
+    "date": "2026-10-29 13:05:29",
+    "items": [
+      {
+        "description": "Cartucho de tóner Canon 137",
+        "price_usd": 20.0,
+        "qty": 1,
+        "specs": "Rendimiento aprox. 2.400 páginas (al 5% de cobertura). Compatible con Canon ImageCLASS MF211, MF212w, MF216n, MF227dw, MF232w, MF244dw, LBP151dw"
+      }
+    ],
+    "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1006_20261031_061134.pdf",
+    "quote_id": "COT-1006",
+    "status": "Emitida",
+    "subtotal_usd": 20.0,
+    "tax_percent": 16.0,
+    "tax_usd": 3.2,
+    "total_bs": 20622.27,
+    "total_usd": 23.2
+  },
+  {
+    "bcv_rate": 888.8909,
+    "client_name": "Inquivosa",
+    "client_phone": "N/A",
+    "client_rif": "N/A",
+    "date": "2026-10-29 13:23:11",
+    "items": [
+      {
+        "description": "Fotocopiadora Canon imageRUNNER 529iF. La máquina incluye un cartucho, 50.000 copias aproximadamente, modelo T03.",
+        "price_usd": 2350.0,
+        "qty": 1,
+        "specs": "Equipo multifuncional monocromático de alto rendimiento para oficina"
+      },
+      {
+        "description": "Cartucho de tóner Canon T03",
+        "price_usd": 90.0,
+        "qty": 1,
+        "specs": "Tóner original/compatible para Canon imageRUNNER 529iF, rend. aprox. 50.000 páginas"
+      }
+    ],
+    "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1007_20261031_061134.pdf",
+    "quote_id": "COT-1007",
+    "status": "Emitida",
+    "subtotal_usd": 2440.0,
+    "tax_percent": 16.0,
+    "tax_usd": 390.4,
+    "total_bs": 2515916.8,
+    "total_usd": 2830.4
+  },
+  {
+    "bcv_rate": 888.8909,
+    "client_name": "Fibex",
+    "client_phone": "N/A",
+    "client_rif": "N/A",
+    "date": "2026-10-29 19:38:35",
+    "items": [
+      {
+        "description": "Cartucho de Tóner HP 105A (W1105A)",
+        "price_usd": 17.0,
+        "qty": 2,
+        "specs": "Rendimiento aproximado de 5.000 páginas, compatible con impresoras HP Laser 107a, 107w, MFP 135a, 135w, MFP 137fnw"
+      }
+    ],
+    "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1008_20261031_061135.pdf",
+    "quote_id": "COT-1008",
+    "status": "Emitida",
+    "subtotal_usd": 34.0,
+    "tax_percent": 16.0,
+    "tax_usd": 5.44,
+    "total_bs": 35057.86,
+    "total_usd": 39.44
+  },
+  {
+    "bcv_rate": 889.2553,
+    "client_name": "Empresa En Ascenso",
+    "client_phone": "N/A",
+    "client_rif": "N/A",
+    "date": "2026-10-30 11:34:10",
+    "items": [
+      {
+        "description": "Cartucho de Tóner Canon T06",
+        "price_usd": 50.0,
+        "qty": 1,
+        "specs": "Rendimiento aproximado de 20.500 impresiones (al 5% de cobertura). Compatible con impresoras de la serie Canon imageRUNNER."
+      }
+    ],
+    "pdf_path": "C:\\Users\\TRADING_PRO\\Desktop\\Prueba_Antigravity\\exports\\cotizaciones\\Cotizacion_COT-1009_20261031_061135.pdf",
+    "quote_id": "COT-1009",
+    "status": "Emitida",
+    "subtotal_usd": 50.0,
+    "tax_percent": 16.0,
+    "tax_usd": 8.0,
+    "total_bs": 51576.81,
+    "total_usd": 58.0
+  }
+]
