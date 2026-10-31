@@ -735,7 +735,7 @@ class ComercioVentasView(ctk.CTkFrame):
 
         self.btn_generar_b2b = ctk.CTkButton(
             controls_row,
-            text="⚡ Generar 3 Publicaciones Semanales (Lun / Mié / Vie)",
+            text="⚡ Generar publicaciones semanales",
             font=Theme.FONT_BODY_BOLD,
             fg_color=Theme.PURPLE,
             hover_color=Theme.PURPLE_HOVER,
@@ -795,19 +795,24 @@ class ComercioVentasView(ctk.CTkFrame):
 
     # ─── Orquestador B2B: Generación de Lote Semanal ────────────────────────
     def _ejecutar_lote_semanal_b2b(self):
-        """Lanza la generación de 3 publicaciones semanales en un hilo separado."""
-        cat_raw = self.combo_b2b_cat.get()
-        cat_filtro = None if "Rotación Automática" in cat_raw else cat_raw
+        """Lanza la generación directa del lote semanal B2B sin solicitar selección manual redundante."""
+        cat_filtro = None
+        if hasattr(self, "combo_b2b_cat"):
+            cat_raw = self.combo_b2b_cat.get()
+            if cat_raw and "Rotación Automática" not in cat_raw and "Todas" not in cat_raw:
+                cat_filtro = cat_raw
 
-        self.btn_generar_b2b.configure(state="disabled", text="⏳ Generando publicaciones…")
+        self.btn_generar_b2b.configure(state="disabled", text="⏳ Generando publicaciones semanales…")
         ts = datetime.datetime.now().strftime("%H:%M:%S")
-        self.txt_mkt_log.insert("end", f"\n[{ts}] ▶ Iniciando generación B2B (Filtro: {cat_raw})…\n")
+        self.txt_mkt_log.insert("end", f"\n[{ts}] ▶ Iniciando generación directa del lote semanal B2B (Google Sheets)…\n")
         self.txt_mkt_log.see("end")
 
         def _task():
+            # Invocación directa del flujo automático de b2b_marketing_agent pasando los parámetros del lote semanal
             res = self.marketing_agent.execute("generate_weekly_batch", {
                 "historial_copys": [],
                 "categoria_filtro": cat_filtro,
+                "siguiente_id": 1,
             })
             self.after(0, self._render_lote_b2b, res)
 
@@ -817,7 +822,7 @@ class ComercioVentasView(ctk.CTkFrame):
         """Actualiza la bitácora con el resultado del lote semanal."""
         self.btn_generar_b2b.configure(
             state="normal",
-            text="⚡ Generar 3 Publicaciones Semanales (Lun / Mié / Vie)"
+            text="⚡ Generar publicaciones semanales"
         )
         ts = datetime.datetime.now().strftime("%H:%M:%S")
         if res.success:

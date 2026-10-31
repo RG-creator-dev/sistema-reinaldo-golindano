@@ -51,8 +51,12 @@ class OrchestratorAgent(BaseAgent):
             return self.broadcast_directive(payload)
         elif task_type == "daily_autonomous_scan":
             return self.scan_daily_autonomous_audit()
-        elif task_type == "execute_b2b_campaign":
+        elif task_type in ("execute_b2b_campaign", "generate_weekly_batch"):
             return self.execute_b2b_weekly_campaign(payload)
+        elif task_type in ("scheduled_b2b_routine", "run_scheduled_b2b_automation"):
+            return self.run_scheduled_b2b_automation(force=payload.get("force", False))
+        elif task_type in ("release_b2b_publications", "release_b2b_live_publications"):
+            return AgentResponse(success=True, message="Publicación gestionada externamente por Make (Integromat).")
         else:
             return AgentResponse(success=False, message=f"Tarea '{task_type}' desconocida.")
 
@@ -205,6 +209,7 @@ class OrchestratorAgent(BaseAgent):
         """
         Activa el Orquestador B2B para generar automáticamente las 3 publicaciones
         semanales (Lunes, Miércoles, Viernes) con fotos reales e inserción directa en Google Sheets.
+        Ejecución 100% desatendida sin solicitar confirmaciones en la interfaz.
         """
         payload = payload or {}
         cat_filtro = payload.get("categoria_filtro")
@@ -215,17 +220,40 @@ class OrchestratorAgent(BaseAgent):
             b2b_agent = B2BMarketingAgent()
             self.register_agent("b2b_marketing", b2b_agent)
 
-        app_logger.info(f"Director General activando Orquestador B2B (Filtro: {cat_filtro or 'Rotación Automática'})...")
+        app_logger.info(f"Director General activando Orquestador B2B de forma desatendida (Filtro: {cat_filtro or 'Rotación Automática'})...")
         res = b2b_agent.generar_lote_semanal(categoria_filtro=cat_filtro)
 
         if res.success:
             self.emit_event("executive_b2b_campaign_triggered", {
-                "triggered_by": "Director General",
+                "triggered_by": "Director General / Automatización Programada",
                 "filter": cat_filtro,
                 "posts": res.data
             })
+            app_logger.info(f"[Orquestador B2B] Lote generado con éxito sin detenerse por confirmación: {res.message}")
+        else:
+            app_logger.error(f"[Orquestador B2B] Error en lote semanal: {res.message}")
 
         return res
+
+    def run_scheduled_b2b_automation(self, force: bool = False) -> AgentResponse:
+        """
+        Regla de Automatización Temporal B2B:
+        - Generación del Lote: Sábados a las 7:45 a. m. (Ajuste prueba de hoy) (artes y copies para Lunes, Miércoles y Viernes,
+          escribiendo las filas en Google Sheets con estado 'Pendiente').
+        - Publicación en Redes: Gestionada de forma externa e independiente por Make (Integromat),
+          quien monitorea la hoja, publica el contenido y actualiza el estado a 'Publicado'.
+        """
+        now = datetime.now(VENEZUELA_TZ)
+        is_saturday_trigger = (now.weekday() == 5 and now.hour == 7 and now.minute == 45)
+
+        if force or is_saturday_trigger:
+            app_logger.info("[Director General] Disparando generación automática B2B programada de los Sábados 7:45 AM (Estado: Pendiente para Make)...")
+            return self.execute_b2b_weekly_campaign({"categoria_filtro": None})
+
+        return AgentResponse(
+            success=True,
+            message=f"[Orquestador B2B] Monitoreo activo. Fuera de ventana programada ({now.strftime('%A %H:%M')})."
+        )
 
     # -------------------------------------------------------------------------
     # 3. Supervisión, Salud del Sistema e Informes Ejecutivos
