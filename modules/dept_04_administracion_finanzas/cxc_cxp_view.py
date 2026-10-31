@@ -479,49 +479,70 @@ class CxcCxpView(ctk.CTkFrame):
         """Abre una ventana emergente para registrar manualmente una nueva CxC o CxP."""
         dlg = ctk.CTkToplevel(self)
         dlg.title(f"Registrar {'Cuenta por Cobrar (CxC)' if tipo_inicial == 'CxC' else 'Cuenta por Pagar (CxP)'}")
-        dlg.geometry("450x520")
-        dlg.resizable(False, False)
+        dlg.geometry("480x560")
+        dlg.minsize(420, 460)
+        dlg.resizable(True, True)
         dlg.grab_set()
 
-        ctk.CTkLabel(
-            dlg,
+        # Centrar sobre la ventana padre o pantalla
+        dlg.update_idletasks()
+        try:
+            x = self.winfo_rootx() + (self.winfo_width() // 2) - 240
+            y = self.winfo_rooty() + (self.winfo_height() // 2) - 280
+            dlg.geometry(f"+{max(10, x)}+{max(10, y)}")
+        except Exception:
+            pass
+
+        # Contenedor desplazable para garantizar visibilidad total en cualquier resolución o escala DPI
+        container = ctk.CTkScrollableFrame(dlg, fg_color="transparent")
+        container.pack(fill="both", expand=True, padx=15, pady=(10, 10))
+
+        lbl_header = ctk.CTkLabel(
+            container,
             text=f"Nueva Operación: {'Cuenta por Cobrar (CxC)' if tipo_inicial == 'CxC' else 'Cuenta por Pagar (CxP)'}",
             font=Theme.FONT_SUBTITLE,
             text_color=Theme.TEXT_MAIN
-        ).pack(anchor="w", padx=20, pady=(16, 6))
+        )
+        lbl_header.pack(anchor="w", padx=5, pady=(4, 6))
 
         # Selector de Tipo (CxC vs CxP)
-        ctk.CTkLabel(dlg, text="Tipo de Cuenta:", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=20, pady=(2, 0))
-        seg_tipo_dlg = ctk.CTkSegmentedButton(dlg, values=["CxC (Por Cobrar)", "CxP (Por Pagar)"], selected_color=Theme.PRIMARY)
+        ctk.CTkLabel(container, text="Tipo de Cuenta:", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=5, pady=(4, 0))
+        seg_tipo_dlg = ctk.CTkSegmentedButton(container, values=["CxC (Por Cobrar)", "CxP (Por Pagar)"], selected_color=Theme.PRIMARY)
         seg_tipo_dlg.set("CxC (Por Cobrar)" if tipo_inicial == "CxC" else "CxP (Por Pagar)")
-        seg_tipo_dlg.pack(fill="x", padx=20, pady=2)
+        seg_tipo_dlg.pack(fill="x", padx=5, pady=2)
 
         # Cliente / Proveedor
-        lbl_entidad = ctk.CTkLabel(dlg, text="Cliente:" if tipo_inicial == "CxC" else "Proveedor:", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED)
-        lbl_entidad.pack(anchor="w", padx=20, pady=(4, 0))
-        entry_entidad = ctk.CTkEntry(dlg, placeholder_text="Nombre de la empresa, cliente o proveedor", font=Theme.FONT_BODY)
-        entry_entidad.pack(fill="x", padx=20, pady=2)
+        lbl_entidad = ctk.CTkLabel(container, text="Cliente:" if tipo_inicial == "CxC" else "Proveedor:", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED)
+        lbl_entidad.pack(anchor="w", padx=5, pady=(4, 0))
+        entry_entidad = ctk.CTkEntry(container, placeholder_text="Nombre de la empresa, cliente o proveedor", font=Theme.FONT_BODY)
+        entry_entidad.pack(fill="x", padx=5, pady=2)
 
         def _cambiar_etiqueta_tipo(val):
             if "CxC" in val:
                 lbl_entidad.configure(text="Cliente:")
+                lbl_header.configure(text="Nueva Operación: Cuenta por Cobrar (CxC)")
+                dlg.title("Registrar Cuenta por Cobrar (CxC)")
+                btn_save.configure(text="💾 Registrar Cuenta por Cobrar (CxC)")
             else:
                 lbl_entidad.configure(text="Proveedor:")
+                lbl_header.configure(text="Nueva Operación: Cuenta por Pagar (CxP)")
+                dlg.title("Registrar Cuenta por Pagar (CxP)")
+                btn_save.configure(text="💾 Registrar Cuenta por Pagar (CxP)")
         seg_tipo_dlg.configure(command=_cambiar_etiqueta_tipo)
 
         # Concepto
-        ctk.CTkLabel(dlg, text="Concepto de la Operación:", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=20, pady=(4, 0))
-        entry_concepto = ctk.CTkEntry(dlg, placeholder_text="Ej: Venta 2 Tóner HP 85A a crédito", font=Theme.FONT_BODY)
-        entry_concepto.pack(fill="x", padx=20, pady=2)
+        ctk.CTkLabel(container, text="Concepto de la Operación:", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=5, pady=(4, 0))
+        entry_concepto = ctk.CTkEntry(container, placeholder_text="Ej: Venta 2 Tóner HP 85A a crédito", font=Theme.FONT_BODY)
+        entry_concepto.pack(fill="x", padx=5, pady=2)
 
         # Monto y Moneda
-        ctk.CTkLabel(dlg, text="Monto (USD):", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=20, pady=(4, 0))
-        entry_monto = ctk.CTkEntry(dlg, placeholder_text="0.00", font=Theme.FONT_BODY)
-        entry_monto.pack(fill="x", padx=20, pady=2)
+        ctk.CTkLabel(container, text="Monto (USD):", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=5, pady=(4, 0))
+        entry_monto = ctk.CTkEntry(container, placeholder_text="0.00", font=Theme.FONT_BODY)
+        entry_monto.pack(fill="x", padx=5, pady=2)
 
         # Fechas: Emisión y Vencimiento
-        fechas_frame = ctk.CTkFrame(dlg, fg_color="transparent")
-        fechas_frame.pack(fill="x", padx=20, pady=4)
+        fechas_frame = ctk.CTkFrame(container, fg_color="transparent")
+        fechas_frame.pack(fill="x", padx=5, pady=4)
         fechas_frame.grid_columnconfigure((0, 1), weight=1)
 
         hoy_str = datetime.now().strftime("%Y-%m-%d")
@@ -549,15 +570,15 @@ class CxcCxpView(ctk.CTkFrame):
         entry_venc.pack(fill="x", pady=2)
 
         # Estatus Inicial
-        ctk.CTkLabel(dlg, text="Estatus:", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=20, pady=(4, 0))
-        combo_status = ctk.CTkComboBox(dlg, values=["Pendiente", "Abonado", "Pagado"], state="readonly")
+        ctk.CTkLabel(container, text="Estatus:", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=5, pady=(4, 0))
+        combo_status = ctk.CTkComboBox(container, values=["Pendiente", "Abonado", "Pagado"], state="readonly")
         combo_status.set("Pendiente")
-        combo_status.pack(fill="x", padx=20, pady=2)
+        combo_status.pack(fill="x", padx=5, pady=2)
 
         # Notas Adicionales
-        ctk.CTkLabel(dlg, text="Notas Adicionales / Referencia:", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=20, pady=(4, 0))
-        entry_notas = ctk.CTkEntry(dlg, placeholder_text="Opcional: Factura N° 1084 / Contacto", font=Theme.FONT_BODY)
-        entry_notas.pack(fill="x", padx=20, pady=2)
+        ctk.CTkLabel(container, text="Notas Adicionales / Referencia:", font=Theme.FONT_SMALL, text_color=Theme.TEXT_MUTED).pack(anchor="w", padx=5, pady=(4, 0))
+        entry_notas = ctk.CTkEntry(container, placeholder_text="Opcional: Factura N° 1084 / Contacto", font=Theme.FONT_BODY)
+        entry_notas.pack(fill="x", padx=5, pady=2)
 
         def _guardar():
             tipo_sel = "CxC" if "CxC" in seg_tipo_dlg.get() else "CxP"
@@ -600,12 +621,14 @@ class CxcCxpView(ctk.CTkFrame):
             else:
                 messagebox.showerror("Error", resp.message)
 
+        # Botón de acción principal ("Guardar" / "Registrar") ubicado al final del formulario debajo de Notas Adicionales
         btn_save = ctk.CTkButton(
-            dlg,
-            text="💾 Guardar Cuenta",
+            container,
+            text=f"💾 Registrar {'Cuenta por Cobrar (CxC)' if tipo_inicial == 'CxC' else 'Cuenta por Pagar (CxP)'}",
             font=Theme.FONT_BODY_BOLD,
             fg_color=Theme.SUCCESS,
             hover_color=Theme.SUCCESS_HOVER,
+            height=38,
             command=_guardar
         )
-        btn_save.pack(fill="x", padx=20, pady=(16, 12))
+        btn_save.pack(fill="x", padx=5, pady=(16, 12))

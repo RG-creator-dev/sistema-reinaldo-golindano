@@ -86,27 +86,49 @@ class B2BMarketingAgent(BaseAgent):
     # ------------------------------------------------------------------
 
     def _conectar_google_sheets(self):
-        """Conecta con la matriz de Google Sheets usando la misma lógica del ejecutable."""
-        posibles_rutas = [
-            os.path.join(getattr(SystemConfig, "BASE_DIR", "."), "service_account.json"),
-            "service_account.json",
-            os.path.join(r"C:\Users\TRADING_PRO\Desktop\Prueba_Antigravity", "service_account.json"),
-            os.path.join(r"C:\Users\TRADING_PRO\Desktop\publicidad\Ejecutable publicidad", "service_account.json")
-        ]
-        
-        path_creds = None
-        for r in posibles_rutas:
-            if os.path.exists(r):
-                path_creds = r
-                break
-
-        if not path_creds:
-            raise FileNotFoundError("No se encontró el archivo 'service_account.json' en ninguna de las rutas de respaldo.")
-
+        """Conecta con la matriz de Google Sheets usando la misma lógica del ejecutable o credenciales de entorno en Render."""
         scope = [
             "https://spreadsheets.google.com/feeds",
             "https://www.googleapis.com/auth/drive",
         ]
+
+        # 1. Soporte para credenciales desde variables de entorno de Render
+        env_credentials = (
+            os.getenv("SERVICE_ACCOUNT_JSON")
+            or os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+            or os.getenv("GOOGLE_CREDENTIALS")
+            or os.getenv("GCP_SERVICE_ACCOUNT")
+            or os.getenv("GOOGLE_SHEETS_CREDENTIALS")
+        )
+        if env_credentials:
+            try:
+                import json
+                key_dict = json.loads(env_credentials)
+                creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
+                gc = gspread.authorize(creds)
+                return gc.open("Matriz_Contenido_Marketing_V3").sheet1
+            except Exception as e:
+                app_logger.warning(f"Error autenticando con variable de entorno en Render: {e}")
+
+        # 2. Búsqueda en rutas de archivos locales y secretos
+        posibles_rutas = [
+            os.getenv("GOOGLE_APPLICATION_CREDENTIALS", ""),
+            os.path.join(getattr(SystemConfig, "BASE_DIR", "."), "service_account.json"),
+            "service_account.json",
+            os.path.join(r"C:\Users\TRADING_PRO\Desktop\Prueba_Antigravity", "service_account.json"),
+            os.path.join(r"C:\Users\TRADING_PRO\Desktop\publicidad\Ejecutable publicidad", "service_account.json"),
+            "/etc/secrets/service_account.json"
+        ]
+        
+        path_creds = None
+        for r in posibles_rutas:
+            if r and os.path.exists(r):
+                path_creds = r
+                break
+
+        if not path_creds:
+            raise FileNotFoundError("No se encontró el archivo 'service_account.json' en ninguna de las rutas de respaldo ni variables de entorno.")
+
         creds = ServiceAccountCredentials.from_json_keyfile_name(path_creds, scope)
         gc = gspread.authorize(creds)
         return gc.open("Matriz_Contenido_Marketing_V3").sheet1

@@ -46,11 +46,11 @@ def background_director_scheduler():
         try:
             now = datetime.now(VENEZUELA_TZ)
             
-            # 1. REGLA TEMPORAL B2B: Generación automática de publicaciones todos los Sábados a las 7:45 a.m. (Prueba hoy)
+            # 1. REGLA TEMPORAL B2B: Generación automática de publicaciones todos los Sábados a las 8:50 a.m. (Prueba hoy)
             # Crea artes y copys para Lunes, Miércoles y Viernes con estado 'Pendiente'.
             # Make (Integromat) se encarga de publicar en redes sociales y cambiar el estado a 'Publicado'.
-            if now.weekday() == 5 and now.hour == 7 and now.minute == 45 and not test_executed_today:
-                app_logger.info("[Director General] Disparando generación automática B2B programada (Sábados 7:45 AM - Estado Pendiente para Make)...")
+            if now.weekday() == 5 and now.hour == 8 and now.minute == 50 and not test_executed_today:
+                app_logger.info("[Director General] Disparando generación automática B2B programada (Sábados 8:50 AM - Estado Pendiente para Make)...")
                 res_b2b = orchestrator.execute("execute_b2b_campaign", {})
                 app_logger.info(f"[Director General] Resultado Campaña B2B Sábado: {res_b2b.message}")
                 test_executed_today = True
@@ -64,7 +64,7 @@ def background_director_scheduler():
                 test_executed_today = True
                 time.sleep(61)
 
-            if now.minute not in (0, 45):
+            if now.minute not in (0, 50):
                 test_executed_today = False
                 
             time.sleep(30)  # Revisa el reloj cada 30 segundos

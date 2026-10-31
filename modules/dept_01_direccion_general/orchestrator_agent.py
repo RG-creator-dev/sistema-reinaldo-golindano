@@ -238,16 +238,16 @@ class OrchestratorAgent(BaseAgent):
     def run_scheduled_b2b_automation(self, force: bool = False) -> AgentResponse:
         """
         Regla de Automatización Temporal B2B:
-        - Generación del Lote: Sábados a las 7:45 a. m. (Ajuste prueba de hoy) (artes y copies para Lunes, Miércoles y Viernes,
+        - Generación del Lote: Sábados a las 8:50 a. m. (Ajuste prueba de hoy) (artes y copies para Lunes, Miércoles y Viernes,
           escribiendo las filas en Google Sheets con estado 'Pendiente').
         - Publicación en Redes: Gestionada de forma externa e independiente por Make (Integromat),
           quien monitorea la hoja, publica el contenido y actualiza el estado a 'Publicado'.
         """
         now = datetime.now(VENEZUELA_TZ)
-        is_saturday_trigger = (now.weekday() == 5 and now.hour == 7 and now.minute == 45)
+        is_saturday_trigger = (now.weekday() == 5 and now.hour == 8 and now.minute == 50)
 
         if force or is_saturday_trigger:
-            app_logger.info("[Director General] Disparando generación automática B2B programada de los Sábados 7:45 AM (Estado: Pendiente para Make)...")
+            app_logger.info("[Director General] Disparando generación automática B2B programada de los Sábados 8:50 AM (Estado: Pendiente para Make)...")
             return self.execute_b2b_weekly_campaign({"categoria_filtro": None})
 
         return AgentResponse(
