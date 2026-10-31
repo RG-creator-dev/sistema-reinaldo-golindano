@@ -3,3 +3,4 @@ __pycache__/
 logs/
 temp_receipts/
 exports/service_account.json 
+service_account.json 
