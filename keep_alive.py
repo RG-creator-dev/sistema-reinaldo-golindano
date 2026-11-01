@@ -35,7 +35,8 @@ supply_agent = SupplyAuditAgent(web_scraper=web_scraper)
 def background_director_scheduler():
     """
     Hilo en segundo plano para ejecutar la rutina autónoma del Director General.
-    Configurado temporalmente para dispararse hoy a la 1:30 p.m. (13:30 VET) y los Sábados a las 8:50 a.m.
+    Regla fija permanente B2B: Todos los DOMINGOS a las 2:15 p.m. (14:15 VET).
+    Auditoría general: Lunes a Viernes a las 8:00 a.m. (VET).
     """
     app_logger.info("[BackgroundScheduler] Hilo monitor de Dirección General iniciado correctamente.")
     orchestrator = OrchestratorAgent()
@@ -47,15 +48,15 @@ def background_director_scheduler():
         try:
             now = datetime.now(VENEZUELA_TZ)
             
-            # 1. REGLA TEMPORAL B2B: Prueba hoy a la 1:30 p.m. (13:30 VET) y Sábados a las 8:50 a.m.
+            # 1. REGLA PERMANENTE B2B: Todos los Domingos a las 2:15 p.m. (14:15 VET).
             # Genera publicaciones para Lunes, Miércoles y Viernes con estado 'Pendiente' para Make (Integromat).
-            is_test_trigger_today = (now.hour == 13 and now.minute == 30)
-            is_saturday_trigger = (now.weekday() == 5 and now.hour == 8 and now.minute == 50)
-            
-            if (is_test_trigger_today or is_saturday_trigger) and not b2b_executed_today:
-                app_logger.info(f"[Director General] Disparando generación automática B2B programada ({now.strftime('%Y-%m-%d %H:%M:%S')} VET - Estado Pendiente para Make)...")
+            # weekday() == 6 → Domingo | hour == 14 | minute == 15
+            is_domingo_1415 = (now.weekday() == 6 and now.hour == 14 and now.minute == 15)
+
+            if is_domingo_1415 and not b2b_executed_today:
+                app_logger.info(f"[Director General] [DOMINGO 14:15 VET] Disparando generación automática B2B semanal ({now.strftime('%Y-%m-%d %H:%M:%S')} VET - Estado Pendiente para Make)...")
                 res_b2b = orchestrator.execute("execute_b2b_campaign", {})
-                app_logger.info(f"[Director General] Resultado Campaña B2B: {res_b2b.message}")
+                app_logger.info(f"[Director General] Resultado Campaña B2B Dominical: {res_b2b.message}")
                 b2b_executed_today = True
                 time.sleep(61)
 
@@ -68,7 +69,7 @@ def background_director_scheduler():
                 time.sleep(61)
 
             # Resetear banderas al cambiar de minuto fuera del intervalo de ejecución
-            if now.minute not in (30, 50):
+            if now.minute != 15:
                 b2b_executed_today = False
             if now.minute != 0:
                 audit_executed_today = False

@@ -237,23 +237,23 @@ class OrchestratorAgent(BaseAgent):
 
     def run_scheduled_b2b_automation(self, force: bool = False) -> AgentResponse:
         """
-        Regla de Automatización Temporal B2B:
-        - Generación del Lote: Sábados a las 8:50 a. m. (Ajuste prueba de hoy) (artes y copies para Lunes, Miércoles y Viernes,
-          escribiendo las filas en Google Sheets con estado 'Pendiente').
+        Regla de Automatización Permanente B2B:
+        - Generación del Lote: Todos los DOMINGOS a las 2:15 p.m. (14:15 VET).
+          Crea copies e imágenes para Lunes, Miércoles y Viernes con estado 'Pendiente'.
         - Publicación en Redes: Gestionada de forma externa e independiente por Make (Integromat),
           quien monitorea la hoja, publica el contenido y actualiza el estado a 'Publicado'.
         """
         now = datetime.now(VENEZUELA_TZ)
-        is_test_trigger_today = (now.hour == 13 and now.minute == 30)
-        is_saturday_trigger = (now.weekday() == 5 and now.hour == 8 and now.minute == 50)
+        # Domingo (weekday == 6) a las 14:15 VET — ejecución semanal permanente
+        is_domingo_1415 = (now.weekday() == 6 and now.hour == 14 and now.minute == 15)
 
-        if force or is_test_trigger_today or is_saturday_trigger:
-            app_logger.info(f"[Director General] Disparando generación automática B2B programada ({now.strftime('%Y-%m-%d %H:%M:%S')} VET - Estado: Pendiente para Make)...")
+        if force or is_domingo_1415:
+            app_logger.info(f"[Director General] [DOMINGO 14:15 VET] Disparando generación automática B2B semanal ({now.strftime('%Y-%m-%d %H:%M:%S')} VET - Estado: Pendiente para Make)...")
             return self.execute_b2b_weekly_campaign({"categoria_filtro": None})
 
         return AgentResponse(
             success=True,
-            message=f"[Orquestador B2B] Monitoreo activo. Fuera de ventana programada ({now.strftime('%A %H:%M')})."
+            message=f"[Orquestador B2B] Monitoreo activo. Fuera de ventana programada (Domingo 14:15 VET). Ahora: {now.strftime('%A %H:%M')} VET."
         )
 
     # -------------------------------------------------------------------------
