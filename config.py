@@ -33,8 +33,12 @@ class SystemConfig:
     MOVEMENTS_FILE = os.path.join(DATA_DIR, "movimientos.json")
     CXC_CXP_FILE = os.path.join(DATA_DIR, "cxc_cxp.json")
     
-    # Rutas de Recursos Externos (Solo Lectura)
-    RUTA_PUBLICIDAD_IMAGENES = r"C:\Users\TRADING_PRO\Desktop\publicidad\Img de Gemini"
+    # Rutas de Recursos de Publicidad B2B (Interna del proyecto para Render y Local)
+    PUBLICIDAD_DIR = os.path.join(BASE_DIR, "publicidad")
+    _DEFAULT_PUB_DIR = PUBLICIDAD_DIR if os.path.exists(PUBLICIDAD_DIR) else (
+        r"C:\Users\TRADING_PRO\Desktop\publicidad\Img de Gemini" if os.path.exists(r"C:\Users\TRADING_PRO\Desktop\publicidad\Img de Gemini") else PUBLICIDAD_DIR
+    )
+    RUTA_PUBLICIDAD_IMAGENES = os.getenv("RUTA_PUBLICIDAD_IMAGENES", _DEFAULT_PUB_DIR)
     
     # Credenciales de API
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")

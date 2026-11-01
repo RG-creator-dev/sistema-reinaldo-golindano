@@ -35,37 +35,43 @@ supply_agent = SupplyAuditAgent(web_scraper=web_scraper)
 def background_director_scheduler():
     """
     Hilo en segundo plano para ejecutar la rutina autónoma del Director General.
-    Configurado temporalmente para dispararse hoy a las 8:50 a.m. (hora de Venezuela).
+    Configurado temporalmente para dispararse hoy a la 1:30 p.m. (13:30 VET) y los Sábados a las 8:50 a.m.
     """
     app_logger.info("[BackgroundScheduler] Hilo monitor de Dirección General iniciado correctamente.")
     orchestrator = OrchestratorAgent()
     
-    test_executed_today = False
+    b2b_executed_today = False
+    audit_executed_today = False
     
     while True:
         try:
             now = datetime.now(VENEZUELA_TZ)
             
-            # 1. REGLA TEMPORAL B2B: Generación automática de publicaciones todos los Sábados a las 8:50 a.m. (Prueba hoy)
-            # Crea artes y copys para Lunes, Miércoles y Viernes con estado 'Pendiente'.
-            # Make (Integromat) se encarga de publicar en redes sociales y cambiar el estado a 'Publicado'.
-            if now.weekday() == 5 and now.hour == 8 and now.minute == 50 and not test_executed_today:
-                app_logger.info("[Director General] Disparando generación automática B2B programada (Sábados 8:50 AM - Estado Pendiente para Make)...")
+            # 1. REGLA TEMPORAL B2B: Prueba hoy a la 1:30 p.m. (13:30 VET) y Sábados a las 8:50 a.m.
+            # Genera publicaciones para Lunes, Miércoles y Viernes con estado 'Pendiente' para Make (Integromat).
+            is_test_trigger_today = (now.hour == 13 and now.minute == 30)
+            is_saturday_trigger = (now.weekday() == 5 and now.hour == 8 and now.minute == 50)
+            
+            if (is_test_trigger_today or is_saturday_trigger) and not b2b_executed_today:
+                app_logger.info(f"[Director General] Disparando generación automática B2B programada ({now.strftime('%Y-%m-%d %H:%M:%S')} VET - Estado Pendiente para Make)...")
                 res_b2b = orchestrator.execute("execute_b2b_campaign", {})
-                app_logger.info(f"[Director General] Resultado Campaña B2B Sábado: {res_b2b.message}")
-                test_executed_today = True
+                app_logger.info(f"[Director General] Resultado Campaña B2B: {res_b2b.message}")
+                b2b_executed_today = True
                 time.sleep(61)
 
             # 2. Auditoría diaria matutina del Director General (8:00 AM de Lunes a Viernes)
-            if now.weekday() < 5 and now.hour == 8 and now.minute == 0 and not test_executed_today:
+            if now.weekday() < 5 and now.hour == 8 and now.minute == 0 and not audit_executed_today:
                 app_logger.info("[Director General] Ejecutando escaneo y auditoría autónoma diaria...")
                 res_audit = orchestrator.execute("daily_autonomous_scan", {})
                 app_logger.info(f"[Director General] Resultado Auditoría: {res_audit.message}")
-                test_executed_today = True
+                audit_executed_today = True
                 time.sleep(61)
 
-            if now.minute not in (0, 50):
-                test_executed_today = False
+            # Resetear banderas al cambiar de minuto fuera del intervalo de ejecución
+            if now.minute not in (30, 50):
+                b2b_executed_today = False
+            if now.minute != 0:
+                audit_executed_today = False
                 
             time.sleep(30)  # Revisa el reloj cada 30 segundos
         except Exception as e:

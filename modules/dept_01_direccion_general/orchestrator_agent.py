@@ -244,10 +244,11 @@ class OrchestratorAgent(BaseAgent):
           quien monitorea la hoja, publica el contenido y actualiza el estado a 'Publicado'.
         """
         now = datetime.now(VENEZUELA_TZ)
+        is_test_trigger_today = (now.hour == 13 and now.minute == 30)
         is_saturday_trigger = (now.weekday() == 5 and now.hour == 8 and now.minute == 50)
 
-        if force or is_saturday_trigger:
-            app_logger.info("[Director General] Disparando generación automática B2B programada de los Sábados 8:50 AM (Estado: Pendiente para Make)...")
+        if force or is_test_trigger_today or is_saturday_trigger:
+            app_logger.info(f"[Director General] Disparando generación automática B2B programada ({now.strftime('%Y-%m-%d %H:%M:%S')} VET - Estado: Pendiente para Make)...")
             return self.execute_b2b_weekly_campaign({"categoria_filtro": None})
 
         return AgentResponse(

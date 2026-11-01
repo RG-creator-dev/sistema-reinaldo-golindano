@@ -60,15 +60,84 @@ class B2BMarketingAgent(BaseAgent):
     utilizando un banco de 105 temas con memoria anti-repetición integrada.
     """
 
-    # Mapeo de carpetas de fotos reales en modo solo lectura
-    MAPEO_CARPETAS = {
-        "Epson EcoTank":    os.path.join(SystemConfig.RUTA_PUBLICIDAD_IMAGENES, "Epson eco Tank"),
-        "Fusor":            os.path.join(SystemConfig.RUTA_PUBLICIDAD_IMAGENES, "Fusor"),
-        "Modulo de Imagen": os.path.join(SystemConfig.RUTA_PUBLICIDAD_IMAGENES, "Modulo de imagen"),
-        "Reparaciones":     os.path.join(SystemConfig.RUTA_PUBLICIDAD_IMAGENES, "Reparaciones"),
-        "Tiqueras Epson":   os.path.join(SystemConfig.RUTA_PUBLICIDAD_IMAGENES, "Tikeras epson"),
-        "Toner":            os.path.join(SystemConfig.RUTA_PUBLICIDAD_IMAGENES, "Toner"),
+    # Mapeo canónico de subcarpetas en la carpeta interna del proyecto
+    MAPEO_SUBDIRECTORIOS = {
+        "Epson EcoTank":    "Epson eco Tank",
+        "Fusor":            "Fusor",
+        "Modulo de Imagen": "Modulo de imagen",
+        "Reparaciones":     "Reparaciones",
+        "Tiqueras Epson":   "Tikeras epson",
+        "Toner":            "Toner",
     }
+    MAPEO_CARPETAS = MAPEO_SUBDIRECTORIOS  # Retrocompatibilidad
+
+    @classmethod
+    def get_publicidad_dir(cls) -> str:
+        """Obtiene la ruta a la carpeta interna de publicidad dentro del repositorio o sistema."""
+        pub_local = os.path.join(getattr(SystemConfig, "BASE_DIR", "."), "publicidad")
+        if os.path.exists(pub_local):
+            return pub_local
+        if hasattr(SystemConfig, "RUTA_PUBLICIDAD_IMAGENES") and os.path.exists(SystemConfig.RUTA_PUBLICIDAD_IMAGENES):
+            return SystemConfig.RUTA_PUBLICIDAD_IMAGENES
+        return pub_local
+
+    def _resolver_carpeta_categoria(self, categoria: str) -> Optional[str]:
+        """
+        Resuelve de forma robusta la subcarpeta interna correspondiente a la categoría.
+        Compatible al 100% con Linux (Render case-sensitive) y Windows.
+        """
+        pub_dir = self.get_publicidad_dir()
+        if not os.path.exists(pub_dir):
+            app_logger.warning(f"[B2B] Directorio base de publicidad no existe: {pub_dir}")
+            return None
+
+        # Sinónimos priorizados (específicos antes de genéricos)
+        alias_map = [
+            ("piquera", "Tikeras epson"),
+            ("tiquera", "Tikeras epson"),
+            ("tikera", "Tikeras epson"),
+            ("ecotank", "Epson eco Tank"),
+            ("epson", "Epson eco Tank"),
+            ("fusor", "Fusor"),
+            ("modulo", "Modulo de imagen"),
+            ("módulo", "Modulo de imagen"),
+            ("reparac", "Reparaciones"),
+            ("reparacion", "Reparaciones"),
+            ("reparación", "Reparaciones"),
+            ("toner", "Toner"),
+            ("tóner", "Toner"),
+        ]
+
+        try:
+            subdirs_disco = [d for d in os.listdir(pub_dir) if os.path.isdir(os.path.join(pub_dir, d))]
+        except Exception:
+            subdirs_disco = []
+
+        # 1. Coincidencia directa si la categoría está en el mapeo canónico
+        if categoria in self.MAPEO_SUBDIRECTORIOS:
+            nombre_esperado = self.MAPEO_SUBDIRECTORIOS[categoria]
+            p_exact = os.path.join(pub_dir, nombre_esperado)
+            if os.path.exists(p_exact):
+                return p_exact
+            norm_esperado = nombre_esperado.lower().replace(" ", "").replace("_", "")
+            for d in subdirs_disco:
+                if d.lower().replace(" ", "").replace("_", "") == norm_esperado:
+                    return os.path.join(pub_dir, d)
+
+        # 3. Búsqueda por alias o sinónimos
+        cat_lower = (categoria or "").lower()
+        for clave, carpeta_canon in alias_map:
+            if clave in cat_lower:
+                for d in subdirs_disco:
+                    if d.lower().replace(" ", "") == carpeta_canon.lower().replace(" ", ""):
+                        return os.path.join(pub_dir, d)
+
+        # 4. Respaldo a Reparaciones
+        for d in subdirs_disco:
+            if "repar" in d.lower():
+                return os.path.join(pub_dir, d)
+
+        return pub_dir
 
     def __init__(self):
         super().__init__(
@@ -131,6 +200,11 @@ class B2BMarketingAgent(BaseAgent):
 
         creds = ServiceAccountCredentials.from_json_keyfile_name(path_creds, scope)
         gc = gspread.authorize(creds)
+        for titulo in ["Matriz_Contenido_Marketing_V3", "Matriz_Contenido_Marketing"]:
+            try:
+                return gc.open(titulo).sheet1
+            except Exception:
+                pass
         return gc.open("Matriz_Contenido_Marketing_V3").sheet1
 
     def _obtener_siguiente_id(self, sheet) -> int:
@@ -139,40 +213,109 @@ class B2BMarketingAgent(BaseAgent):
         numeros = [int(v.strip()) for v in columna_a if str(v).strip().isdigit()]
         return (max(numeros) + 1) if numeros else 1
 
+    def verificar_duplicidad_semanal(self, sheet, fechas_objetivo: List[str]) -> tuple[bool, str]:
+        """
+        Revisa estrictamente la 'Matriz_Contenido_Marketing' en Google Sheets.
+        Si ya existen registros o fechas programadas para la semana actual o próximas fechas objetivo,
+        retorna (True, motivo) para detener el proceso automáticamente y evitar filas duplicadas.
+        """
+        try:
+            columna_e = sheet.col_values(5)  # Columna 5: Fecha_Programada
+            if not columna_e or len(columna_e) <= 1:
+                return False, ""
+
+            fechas_registradas = [f.strip() for f in columna_e[1:] if f and f.strip()]
+            if not fechas_registradas:
+                return False, ""
+
+            # 1. Validación directa por coincidencia de fechas exactas
+            fechas_repetidas = [f for f in fechas_objetivo if f in fechas_registradas]
+            if fechas_repetidas:
+                return True, f"Ya existen registros con las fechas exactas: {', '.join(fechas_repetidas)}"
+
+            # 2. Validación por semana calendario ISO (Año, Número de Semana)
+            semanas_registradas = set()
+            for f_str in fechas_registradas:
+                try:
+                    dt = datetime.datetime.strptime(f_str[:10], "%Y-%m-%d").date()
+                    semanas_registradas.add(dt.isocalendar()[:2])
+                except Exception:
+                    continue
+
+            semanas_objetivo = set()
+            for f_str in fechas_objetivo:
+                try:
+                    dt = datetime.datetime.strptime(f_str[:10], "%Y-%m-%d").date()
+                    semanas_objetivo.add(dt.isocalendar()[:2])
+                except Exception:
+                    continue
+
+            # Verificar si las semanas de las publicaciones a programar ya están cubiertas
+            coincidencia_semanas = semanas_objetivo.intersection(semanas_registradas)
+            if coincidencia_semanas:
+                detalle_sem = ", ".join([f"Semana {s[1]} de {s[0]}" for s in coincidencia_semanas])
+                return True, f"Ya existen publicaciones registradas para la(s) semana(s): {detalle_sem}"
+
+            # Verificar si la semana actual de hoy ya tiene registros y coincide con la semana objetivo
+            semana_hoy = datetime.date.today().isocalendar()[:2]
+            if semana_hoy in semanas_registradas and semana_hoy in semanas_objetivo:
+                return True, f"Ya existen publicaciones registradas para la semana actual (Semana {semana_hoy[1]} de {semana_hoy[0]})"
+
+            return False, ""
+        except Exception as e:
+            app_logger.warning(f"[B2B] Error durante la comprobación de duplicidad en Sheets: {e}")
+            return False, ""
+
     def seleccionar_foto_real(self, categoria: str) -> Optional[str]:
-        """Selecciona una fotografía real de la subcarpeta correspondiente (solo lectura)."""
-        carpeta = self.MAPEO_CARPETAS.get(categoria, self.MAPEO_CARPETAS["Reparaciones"])
+        """Selecciona una fotografía real de la subcarpeta correspondiente interna (compatible Linux/Windows)."""
+        carpeta = self._resolver_carpeta_categoria(categoria)
+        exts = (".jpg", ".jpeg", ".png", ".webp", ".jfif")
 
-        if not os.path.exists(carpeta):
-            carpeta = self.MAPEO_CARPETAS["Reparaciones"]
+        if carpeta and os.path.exists(carpeta):
+            archivos = [f for f in os.listdir(carpeta) if f.lower().endswith(exts)]
+            if archivos:
+                return os.path.join(carpeta, random.choice(archivos))
 
-        if not os.path.exists(carpeta):
-            return None
+        # Respaldo 1: Subcarpeta Reparaciones
+        pub_dir = self.get_publicidad_dir()
+        if os.path.exists(pub_dir):
+            for d in os.listdir(pub_dir):
+                if "repar" in d.lower():
+                    sub_rep = os.path.join(pub_dir, d)
+                    if os.path.isdir(sub_rep):
+                        archivos = [f for f in os.listdir(sub_rep) if f.lower().endswith(exts)]
+                        if archivos:
+                            return os.path.join(sub_rep, random.choice(archivos))
 
-        exts = (".jpg", ".jpeg", ".png", ".webp")
-        archivos = [f for f in os.listdir(carpeta) if f.lower().endswith(exts)]
+            # Respaldo 2: Cualquier imagen disponible en la carpeta de publicidad
+            for raiz, _, files in os.walk(pub_dir):
+                validos = [f for f in files if f.lower().endswith(exts)]
+                if validos:
+                    return os.path.join(raiz, random.choice(validos))
 
-        if not archivos and carpeta != self.MAPEO_CARPETAS["Reparaciones"]:
-            carpeta = self.MAPEO_CARPETAS["Reparaciones"]
-            if os.path.exists(carpeta):
-                archivos = [f for f in os.listdir(carpeta) if f.lower().endswith(exts)]
-
-        if archivos:
-            return os.path.join(carpeta, random.choice(archivos))
         return None
 
     def subir_imagen_a_imgbb(self, ruta_imagen: str) -> str:
-        """Sube la imagen seleccionada al CDN público de ImgBB."""
+        """Sube la imagen seleccionada al CDN público de ImgBB y retorna URL directa limpia."""
+        if not ruta_imagen or not os.path.exists(ruta_imagen):
+            raise FileNotFoundError(f"Archivo de imagen local no encontrado para ImgBB: {ruta_imagen}")
+
         url = "https://api.imgbb.com/1/upload"
-        imgbb_key = "b9b7b0521bf51fd400cb94e23b1f49d1"
+        imgbb_key = os.getenv("IMGBB_API_KEY", "b9b7b0521bf51fd400cb94e23b1f49d1")
+
         with open(ruta_imagen, "rb") as f:
-            resp = requests.post(url, data={"key": imgbb_key}, files={"image": f})
+            resp = requests.post(url, data={"key": imgbb_key}, files={"image": f}, timeout=45)
+
         if resp.status_code != 200:
             raise Exception(f"Error HTTP {resp.status_code} al subir a ImgBB: {resp.text}")
+
         res = resp.json()
-        if res.get("success"):
-            return res["data"]["url"]
-        raise Exception(f"Error ImgBB: {res}")
+        if res.get("success") and "data" in res and "url" in res["data"]:
+            url_limpia = res["data"]["url"]
+            app_logger.info(f"[ImgBB] Imagen subida exitosamente: {url_limpia}")
+            return url_limpia
+
+        raise Exception(f"Respuesta inesperada de ImgBB: {res}")
 
     def generar_enlace_whatsapp(self, tema: str = "asistencia técnica") -> str:
         """Crea el enlace de WhatsApp corporativo limpio y directo."""
@@ -307,6 +450,17 @@ Devuelve ÚNICAMENTE el texto del copy. Sin explicaciones, sin prefijos, sin blo
         fechas = self.calcular_proximas_fechas_l_m_v(3)
         dias_semana = ["Lunes", "Miércoles", "Viernes"]
 
+        # 2. VALIDACIÓN ESTRICTA DE DUPLICIDAD EN GOOGLE SHEETS
+        es_duplicado, motivo = self.verificar_duplicidad_semanal(sheet, fechas)
+        if es_duplicado:
+            msg = f"[B2B] Validación de duplicidad: {motivo}. El proceso se detuvo automáticamente para evitar duplicar filas."
+            app_logger.warning(msg)
+            return AgentResponse(
+                success=True,
+                data=[],
+                message=msg,
+            )
+
         try:
             lote_resultado = []
 
@@ -330,13 +484,28 @@ Devuelve ÚNICAMENTE el texto del copy. Sin explicaciones, sin prefijos, sin blo
                     cat = categoria_filtro
                 foto = self.seleccionar_foto_real(cat)
                 
-                # Subir a ImgBB
-                url_publica_img = "https://i.ibb.co/Placeholder/default.jpg"
+                # Subir a ImgBB con reintento si es necesario
+                url_publica_img = None
                 if foto and os.path.exists(foto):
                     try:
                         url_publica_img = self.subir_imagen_a_imgbb(foto)
                     except Exception as img_err:
-                        app_logger.error(f"Error subiendo imagen a ImgBB: {img_err}")
+                        app_logger.error(f"[B2B] Error subiendo imagen '{foto}' a ImgBB: {img_err}")
+
+                # Reintento con imagen de respaldo si la principal falló
+                if not url_publica_img:
+                    foto_alt = self.seleccionar_foto_real("Reparaciones")
+                    if foto_alt and os.path.exists(foto_alt) and foto_alt != foto:
+                        try:
+                            app_logger.info(f"[B2B] Reintentando subida a ImgBB con foto alternativa: {foto_alt}")
+                            url_publica_img = self.subir_imagen_a_imgbb(foto_alt)
+                            foto = foto_alt
+                        except Exception as e_alt:
+                            app_logger.error(f"[B2B] Error en reintento ImgBB: {e_alt}")
+
+                if not url_publica_img:
+                    url_publica_img = "https://i.ibb.co/Placeholder/default.jpg"
+                    app_logger.critical("[B2B] Falló la subida a ImgBB y se usó enlace de emergencia.")
 
                 wa_link = self.generar_enlace_whatsapp(tema["titulo_sugerido"])
 
